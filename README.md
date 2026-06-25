@@ -24,7 +24,7 @@ So this repository is two things at once:
 2. **The receipts** — a transparent, version-controlled record of how far an AI can get when
    asked to build something genuinely complex.
 
-> 📺 **Follow the series:** _link coming soon_ — watch each system get designed and built live.
+> 📺 **Follow the series:** https://youtu.be/NcgjofPhp-c?si=tuTUikJSGL_71nwA
 
 If you're here from the videos: the commit history *is* the story. Read it top to bottom.
 
