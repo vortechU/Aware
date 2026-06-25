@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="WeaponData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/weapons/weapon_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+weapon_name = "Rifle"
+damage = 22.0
+fire_rate = 9.5
+auto = true
+pellets = 1
+max_range = 250.0
+mag_size = 30
+start_reserve = 120
+max_reserve = 240
+reload_time = 2.2
+hip_spread_deg = 2.4
+ads_spread_deg = 0.25
+bloom_per_shot_deg = 0.35
+max_bloom_deg = 4.5
+recoil_pattern = Array[Vector2]([Vector2(0, 1.15), Vector2(0.05, 1.2), Vector2(-0.1, 1.25), Vector2(0.15, 1.15), Vector2(-0.2, 1.05), Vector2(0.3, 0.95), Vector2(-0.35, 0.9), Vector2(0.45, 0.85), Vector2(-0.5, 0.8), Vector2(0.55, 0.75), Vector2(-0.5, 0.72), Vector2(0.5, 0.7)])
+recoil_recovery = 8.0
+ads_fov = 55.0
+ads_time = 0.2
+model_color = Color(0.27, 0.3, 0.22, 1)
+model_length = 0.6
+sound_radius = 35.0

@@ -1,0 +1,50 @@
+[gd_scene format=3 uid="uid://bf3bsegs1v554"]
+
+[ext_resource type="Script" uid="uid://yx2qkj5bijd1" path="res://scripts/player/player.gd" id="1"]
+[ext_resource type="Script" uid="uid://bybm14pynceb5" path="res://scripts/weapons/weapon_manager.gd" id="2"]
+[ext_resource type="Script" uid="uid://4l464dj18n7i" path="res://scripts/player/player_upgrades.gd" id="3"]
+[ext_resource type="Script" path="res://scripts/player/ability_manager.gd" id="4"]
+[ext_resource type="Script" path="res://scripts/player/hack_manager.gd" id="5"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_player"]
+radius = 0.4
+height = 1.8
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_stand"]
+radius = 0.3
+
+[node name="Player" type="CharacterBody3D" unique_id=2134892918 groups=["player"]]
+collision_layer = 2
+collision_mask = 5
+script = ExtResource("1")
+
+[node name="Collider" type="CollisionShape3D" parent="." unique_id=511146697]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
+shape = SubResource("CapsuleShape3D_player")
+
+[node name="StandCheck" type="ShapeCast3D" parent="." unique_id=356719219]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, 0)
+enabled = false
+shape = SubResource("SphereShape3D_stand")
+target_position = Vector3(0, 0.9, 0)
+
+[node name="Head" type="Node3D" parent="." unique_id=689913406]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.62, 0)
+
+[node name="Bob" type="Node3D" parent="Head" unique_id=203017589]
+
+[node name="Recoil" type="Node3D" parent="Head/Bob" unique_id=1204758329]
+
+[node name="Camera" type="Camera3D" parent="Head/Bob/Recoil" unique_id=217400616]
+
+[node name="WeaponManager" type="Node3D" parent="Head/Bob/Recoil/Camera" unique_id=703622784]
+script = ExtResource("2")
+
+[node name="PlayerUpgrades" type="Node" parent="." unique_id=519169155]
+script = ExtResource("3")
+
+[node name="AbilityManager" type="Node" parent="."]
+script = ExtResource("4")
+
+[node name="HackManager" type="Node" parent="."]
+script = ExtResource("5")

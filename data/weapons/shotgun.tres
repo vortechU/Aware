@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="WeaponData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/weapons/weapon_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+weapon_name = "Shotgun"
+damage = 9.0
+fire_rate = 1.4
+auto = false
+pellets = 10
+max_range = 45.0
+mag_size = 6
+start_reserve = 24
+max_reserve = 48
+reload_time = 2.6
+hip_spread_deg = 4.0
+ads_spread_deg = 2.6
+bloom_per_shot_deg = 1.0
+max_bloom_deg = 6.0
+recoil_pattern = Array[Vector2]([Vector2(0, 4.5)])
+recoil_recovery = 6.0
+ads_fov = 60.0
+ads_time = 0.16
+model_color = Color(0.32, 0.22, 0.14, 1)
+model_length = 0.68
+sound_radius = 40.0

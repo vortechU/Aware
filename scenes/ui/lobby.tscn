@@ -1,0 +1,426 @@
+[gd_scene format=3 uid="uid://ko8gdbrlkxyx"]
+
+[ext_resource type="PackedScene" uid="uid://bf3bsegs1v554" path="res://scenes/player/player.tscn" id="player"]
+[ext_resource type="Script" uid="uid://c3br4tbvow8rv" path="res://scripts/ui/lobby.gd" id="script"]
+
+[sub_resource type="Environment" id="Env_lobby"]
+background_mode = 1
+background_color = Color(0.04, 0.045, 0.06, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.4, 0.45, 0.55, 1)
+ambient_light_energy = 0.45
+tonemap_mode = 2
+
+[sub_resource type="BoxMesh" id="Mesh_floor"]
+size = Vector3(24, 1, 24)
+
+[sub_resource type="StandardMaterial3D" id="Mat_floor"]
+albedo_color = Color(0.13, 0.14, 0.17, 1)
+metallic = 0.1
+roughness = 0.9
+
+[sub_resource type="BoxShape3D" id="Shape_floor"]
+size = Vector3(24, 1, 24)
+
+[sub_resource type="BoxMesh" id="Mesh_wall_ns"]
+size = Vector3(24, 5, 1)
+
+[sub_resource type="StandardMaterial3D" id="Mat_wall"]
+albedo_color = Color(0.18, 0.19, 0.23, 1)
+roughness = 0.85
+
+[sub_resource type="BoxShape3D" id="Shape_wall_ns"]
+size = Vector3(24, 5, 1)
+
+[sub_resource type="BoxMesh" id="Mesh_wall_ew"]
+size = Vector3(1, 5, 24)
+
+[sub_resource type="BoxShape3D" id="Shape_wall_ew"]
+size = Vector3(1, 5, 24)
+
+[sub_resource type="BoxShape3D" id="Shape_zone"]
+size = Vector3(3.5, 3, 3.5)
+
+[sub_resource type="BoxMesh" id="Mesh_ped"]
+size = Vector3(1.2, 1, 1.2)
+
+[sub_resource type="StandardMaterial3D" id="Mat_ped"]
+albedo_color = Color(0.22, 0.24, 0.3, 1)
+metallic = 0.3
+roughness = 0.7
+
+[sub_resource type="BoxMesh" id="Mesh_glow"]
+size = Vector3(1, 0.25, 1)
+
+[sub_resource type="StandardMaterial3D" id="Mat_glow"]
+albedo_color = Color(0.3, 0.85, 1, 1)
+emission_enabled = true
+emission = Color(0.25, 0.8, 1, 1)
+emission_energy_multiplier = 2.2
+
+[sub_resource type="BoxMesh" id="Mesh_post"]
+size = Vector3(0.4, 3.5, 0.4)
+
+[sub_resource type="StandardMaterial3D" id="Mat_portal"]
+albedo_color = Color(0.4, 1, 0.55, 1)
+emission_enabled = true
+emission = Color(0.3, 1, 0.45, 1)
+emission_energy_multiplier = 2.6
+
+[sub_resource type="BoxMesh" id="Mesh_top"]
+size = Vector3(3, 0.4, 0.4)
+
+[sub_resource type="BoxMesh" id="Mesh_door"]
+size = Vector3(2.4, 3.2, 0.3)
+
+[sub_resource type="StandardMaterial3D" id="Mat_door"]
+albedo_color = Color(1, 0.7, 0.3, 1)
+emission_enabled = true
+emission = Color(1, 0.6, 0.2, 1)
+emission_energy_multiplier = 1.6
+
+[node name="Lobby" type="Node3D" unique_id=1463854561]
+script = ExtResource("script")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1578024141]
+environment = SubResource("Env_lobby")
+
+[node name="Sun" type="DirectionalLight3D" parent="." unique_id=819342730]
+transform = Transform3D(0.81915206, 0.4262504, -0.38379753, 0, 0.66913056, 0.74314487, 0.57357645, -0.6087487, 0.54811966, 0, 8, 0)
+light_energy = 0.8
+shadow_enabled = true
+
+[node name="OmniW" type="OmniLight3D" parent="." unique_id=850663496]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 4, -2)
+light_energy = 2.0
+omni_range = 14.0
+
+[node name="OmniE" type="OmniLight3D" parent="." unique_id=1442738291]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 4, -2)
+light_energy = 2.0
+omni_range = 14.0
+
+[node name="OmniPortal" type="OmniLight3D" parent="." unique_id=1225507010]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 4, -9)
+light_color = Color(0.5, 1, 0.6, 1)
+light_energy = 2.5
+omni_range = 12.0
+
+[node name="World" type="Node3D" parent="." unique_id=2086229169]
+
+[node name="Floor" type="StaticBody3D" parent="World" unique_id=1678594195]
+collision_mask = 0
+
+[node name="Mesh" type="MeshInstance3D" parent="World/Floor" unique_id=5808123]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
+mesh = SubResource("Mesh_floor")
+surface_material_override/0 = SubResource("Mat_floor")
+
+[node name="Collision" type="CollisionShape3D" parent="World/Floor" unique_id=262376649]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
+shape = SubResource("Shape_floor")
+
+[node name="WallN" type="StaticBody3D" parent="World" unique_id=2134639781]
+collision_mask = 0
+
+[node name="Mesh" type="MeshInstance3D" parent="World/WallN" unique_id=2075318311]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.5, -12)
+mesh = SubResource("Mesh_wall_ns")
+surface_material_override/0 = SubResource("Mat_wall")
+
+[node name="Collision" type="CollisionShape3D" parent="World/WallN" unique_id=1316275276]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.5, -12)
+shape = SubResource("Shape_wall_ns")
+
+[node name="WallS" type="StaticBody3D" parent="World" unique_id=122935510]
+collision_mask = 0
+
+[node name="Mesh" type="MeshInstance3D" parent="World/WallS" unique_id=465518340]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.5, 12)
+mesh = SubResource("Mesh_wall_ns")
+surface_material_override/0 = SubResource("Mat_wall")
+
+[node name="Collision" type="CollisionShape3D" parent="World/WallS" unique_id=1548695961]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.5, 12)
+shape = SubResource("Shape_wall_ns")
+
+[node name="WallE" type="StaticBody3D" parent="World" unique_id=1881012261]
+collision_mask = 0
+
+[node name="Mesh" type="MeshInstance3D" parent="World/WallE" unique_id=137242801]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 2.5, 0)
+mesh = SubResource("Mesh_wall_ew")
+surface_material_override/0 = SubResource("Mat_wall")
+
+[node name="Collision" type="CollisionShape3D" parent="World/WallE" unique_id=2133898455]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 2.5, 0)
+shape = SubResource("Shape_wall_ew")
+
+[node name="WallW" type="StaticBody3D" parent="World" unique_id=725120306]
+collision_mask = 0
+
+[node name="Mesh" type="MeshInstance3D" parent="World/WallW" unique_id=1447513113]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -12, 2.5, 0)
+mesh = SubResource("Mesh_wall_ew")
+surface_material_override/0 = SubResource("Mat_wall")
+
+[node name="Collision" type="CollisionShape3D" parent="World/WallW" unique_id=1510292113]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -12, 2.5, 0)
+shape = SubResource("Shape_wall_ew")
+
+[node name="PlayerSpawn" type="Marker3D" parent="." unique_id=1559989182]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 8)
+
+[node name="Player" parent="." unique_id=1795280560 instance=ExtResource("player")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 8)
+
+[node name="Stations" type="Node3D" parent="." unique_id=351362665]
+
+[node name="starting_hp" type="Area3D" parent="Stations" unique_id=402838115]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 0, -3)
+collision_layer = 0
+collision_mask = 2
+
+[node name="Zone" type="CollisionShape3D" parent="Stations/starting_hp" unique_id=550706365]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
+shape = SubResource("Shape_zone")
+
+[node name="Pedestal" type="MeshInstance3D" parent="Stations/starting_hp" unique_id=1846414923]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
+mesh = SubResource("Mesh_ped")
+surface_material_override/0 = SubResource("Mat_ped")
+
+[node name="Glow" type="MeshInstance3D" parent="Stations/starting_hp" unique_id=1285543147]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.15, 0)
+mesh = SubResource("Mesh_glow")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Label3D" type="Label3D" parent="Stations/starting_hp" unique_id=1932985547]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.4, 0)
+pixel_size = 0.004
+billboard = 1
+text = "Hardened Vitals"
+font_size = 40
+outline_size = 8
+
+[node name="starting_armor" type="Area3D" parent="Stations" unique_id=1178040735]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 0, -3)
+collision_layer = 0
+collision_mask = 2
+
+[node name="Zone" type="CollisionShape3D" parent="Stations/starting_armor" unique_id=54982065]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
+shape = SubResource("Shape_zone")
+
+[node name="Pedestal" type="MeshInstance3D" parent="Stations/starting_armor" unique_id=90391872]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
+mesh = SubResource("Mesh_ped")
+surface_material_override/0 = SubResource("Mat_ped")
+
+[node name="Glow" type="MeshInstance3D" parent="Stations/starting_armor" unique_id=2121568308]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.15, 0)
+mesh = SubResource("Mesh_glow")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Label3D" type="Label3D" parent="Stations/starting_armor" unique_id=986822719]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.4, 0)
+pixel_size = 0.004
+billboard = 1
+text = "Field Plating"
+font_size = 40
+outline_size = 8
+
+[node name="move_speed" type="Area3D" parent="Stations" unique_id=1154814396]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -3)
+collision_layer = 0
+collision_mask = 2
+
+[node name="Zone" type="CollisionShape3D" parent="Stations/move_speed" unique_id=217035869]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
+shape = SubResource("Shape_zone")
+
+[node name="Pedestal" type="MeshInstance3D" parent="Stations/move_speed" unique_id=2034097036]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
+mesh = SubResource("Mesh_ped")
+surface_material_override/0 = SubResource("Mat_ped")
+
+[node name="Glow" type="MeshInstance3D" parent="Stations/move_speed" unique_id=1146707871]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.15, 0)
+mesh = SubResource("Mesh_glow")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Label3D" type="Label3D" parent="Stations/move_speed" unique_id=1948106379]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.4, 0)
+pixel_size = 0.004
+billboard = 1
+text = "Conditioning"
+font_size = 40
+outline_size = 8
+
+[node name="reload_speed" type="Area3D" parent="Stations" unique_id=2083356788]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 0, -3)
+collision_layer = 0
+collision_mask = 2
+
+[node name="Zone" type="CollisionShape3D" parent="Stations/reload_speed" unique_id=75779406]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
+shape = SubResource("Shape_zone")
+
+[node name="Pedestal" type="MeshInstance3D" parent="Stations/reload_speed" unique_id=434067438]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
+mesh = SubResource("Mesh_ped")
+surface_material_override/0 = SubResource("Mat_ped")
+
+[node name="Glow" type="MeshInstance3D" parent="Stations/reload_speed" unique_id=440960088]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.15, 0)
+mesh = SubResource("Mesh_glow")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Label3D" type="Label3D" parent="Stations/reload_speed" unique_id=1806331270]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.4, 0)
+pixel_size = 0.004
+billboard = 1
+text = "Drill Practice"
+font_size = 40
+outline_size = 8
+
+[node name="ammo_capacity" type="Area3D" parent="Stations" unique_id=1615929694]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 0, -3)
+collision_layer = 0
+collision_mask = 2
+
+[node name="Zone" type="CollisionShape3D" parent="Stations/ammo_capacity" unique_id=1736798974]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
+shape = SubResource("Shape_zone")
+
+[node name="Pedestal" type="MeshInstance3D" parent="Stations/ammo_capacity" unique_id=2127786317]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
+mesh = SubResource("Mesh_ped")
+surface_material_override/0 = SubResource("Mat_ped")
+
+[node name="Glow" type="MeshInstance3D" parent="Stations/ammo_capacity" unique_id=1927606869]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.15, 0)
+mesh = SubResource("Mesh_glow")
+surface_material_override/0 = SubResource("Mat_glow")
+
+[node name="Label3D" type="Label3D" parent="Stations/ammo_capacity" unique_id=1918943873]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.4, 0)
+pixel_size = 0.004
+billboard = 1
+text = "Extended Mags"
+font_size = 40
+outline_size = 8
+
+[node name="StartPortal" type="Area3D" parent="Stations" unique_id=236154848]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -10)
+collision_layer = 0
+collision_mask = 2
+
+[node name="Zone" type="CollisionShape3D" parent="Stations/StartPortal" unique_id=1244743861]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 0)
+shape = SubResource("Shape_zone")
+
+[node name="PostL" type="MeshInstance3D" parent="Stations/StartPortal" unique_id=674393229]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.4, 1.75, 0)
+mesh = SubResource("Mesh_post")
+surface_material_override/0 = SubResource("Mat_portal")
+
+[node name="PostR" type="MeshInstance3D" parent="Stations/StartPortal" unique_id=1850600706]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.4, 1.75, 0)
+mesh = SubResource("Mesh_post")
+surface_material_override/0 = SubResource("Mat_portal")
+
+[node name="Top" type="MeshInstance3D" parent="Stations/StartPortal" unique_id=1746501082]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.4, 0)
+mesh = SubResource("Mesh_top")
+surface_material_override/0 = SubResource("Mat_portal")
+
+[node name="Label3D" type="Label3D" parent="Stations/StartPortal" unique_id=992611433]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 4.1, 0)
+pixel_size = 0.0055
+billboard = 1
+modulate = Color(0.6, 1, 0.7, 1)
+text = "START RUN"
+font_size = 56
+outline_size = 10
+
+[node name="MenuDoor" type="Area3D" parent="Stations" unique_id=1297606453]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 11)
+collision_layer = 0
+collision_mask = 2
+
+[node name="Zone" type="CollisionShape3D" parent="Stations/MenuDoor" unique_id=1481935600]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 0)
+shape = SubResource("Shape_zone")
+
+[node name="Door" type="MeshInstance3D" parent="Stations/MenuDoor" unique_id=937640029]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.6, 0.5)
+mesh = SubResource("Mesh_door")
+surface_material_override/0 = SubResource("Mat_door")
+
+[node name="Label3D" type="Label3D" parent="Stations/MenuDoor" unique_id=737388950]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.6, -0.310544)
+billboard = 1
+modulate = Color(1, 0.8, 0.5, 1)
+text = "MAIN MENU"
+font_size = 48
+outline_size = 10
+
+[node name="LobbyHUD" type="CanvasLayer" parent="." unique_id=772498260]
+
+[node name="Title" type="Label" parent="LobbyHUD" unique_id=1822861478]
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -200.0
+offset_top = 28.0
+offset_right = 200.0
+offset_bottom = 70.0
+theme_override_colors/font_color = Color(0.85, 0.9, 1, 0.85)
+theme_override_font_sizes/font_size = 32
+text = "THE LOBBY"
+horizontal_alignment = 1
+
+[node name="CoresLabel" type="Label" parent="LobbyHUD" unique_id=1469157165]
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -320.0
+offset_top = 28.0
+offset_right = -40.0
+offset_bottom = 70.0
+theme_override_colors/font_color = Color(1, 0.84, 0.4, 1)
+theme_override_font_sizes/font_size = 30
+text = "CORES: 0"
+horizontal_alignment = 2
+
+[node name="Prompt" type="Label" parent="LobbyHUD" unique_id=1788376403]
+visible = false
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -500.0
+offset_top = -150.0
+offset_right = 500.0
+offset_bottom = -110.0
+theme_override_colors/font_color = Color(0.92, 0.96, 1, 1)
+theme_override_font_sizes/font_size = 26
+text = "[E]  Interact"
+horizontal_alignment = 1
+
+[node name="Hint" type="Label" parent="LobbyHUD" unique_id=1104046498]
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -400.0
+offset_top = -54.0
+offset_right = 400.0
+offset_bottom = -26.0
+theme_override_colors/font_color = Color(0.7, 0.75, 0.85, 0.6)
+theme_override_font_sizes/font_size = 16
+text = "WASD move   ·   Mouse look   ·   E interact   ·   ESC release cursor"
+horizontal_alignment = 1

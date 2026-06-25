@@ -1,0 +1,316 @@
+[gd_scene format=3 uid="uid://nhatcdehim1g"]
+
+[ext_resource type="Script" uid="uid://2hxgnn81codq" path="res://scripts/game_manager.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/player/player.tscn" id="2"]
+[ext_resource type="PackedScene" path="res://scenes/ui/hud.tscn" id="3"]
+[ext_resource type="PackedScene" path="res://scenes/pickups/pickup.tscn" id="4"]
+[ext_resource type="Script" uid="uid://ecmqw20aeghy" path="res://scripts/run/run_director.gd" id="5"]
+[ext_resource type="PackedScene" path="res://scenes/ui/run_hud.tscn" id="6"]
+[ext_resource type="Script" uid="uid://c7hacb7up0s5k" path="res://scripts/run/room_builder.gd" id="7"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_sky"]
+sky_top_color = Color(0.25, 0.4, 0.6, 1)
+sky_horizon_color = Color(0.6, 0.62, 0.65, 1)
+ground_bottom_color = Color(0.15, 0.14, 0.13, 1)
+ground_horizon_color = Color(0.6, 0.62, 0.65, 1)
+
+[sub_resource type="Sky" id="Sky_main"]
+sky_material = SubResource("ProceduralSkyMaterial_sky")
+
+[sub_resource type="Environment" id="Environment_main"]
+background_mode = 2
+sky = SubResource("Sky_main")
+ambient_light_source = 3
+tonemap_mode = 2
+
+[sub_resource type="NavigationMesh" id="NavigationMesh_arena"]
+geometry_parsed_geometry_type = 1
+agent_height = 1.75
+agent_max_climb = 0.5
+agent_max_slope = 50.0
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_floor"]
+albedo_color = Color(0.33, 0.34, 0.37, 1)
+roughness = 0.95
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_wall"]
+albedo_color = Color(0.46, 0.43, 0.4, 1)
+roughness = 0.9
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_struct"]
+albedo_color = Color(0.4, 0.42, 0.46, 1)
+roughness = 0.8
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_crate"]
+albedo_color = Color(0.52, 0.38, 0.24, 1)
+roughness = 0.85
+
+[node name="Main" type="Node3D" unique_id=1194891251]
+script = ExtResource("1")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1569735104]
+environment = SubResource("Environment_main")
+
+[node name="Sun" type="DirectionalLight3D" parent="." unique_id=1973702119]
+transform = Transform3D(0.81915206, 0.4262504, -0.38379753, 0, 0.66913056, 0.74314487, 0.57357645, -0.6087487, 0.54811966, 0, 0, 0)
+light_energy = 1.2
+shadow_enabled = true
+
+[node name="NavRegion" type="NavigationRegion3D" parent="." unique_id=808848810]
+navigation_mesh = SubResource("NavigationMesh_arena")
+
+[node name="Arena" type="Node3D" parent="NavRegion" unique_id=1262478733]
+
+[node name="Floor" type="CSGBox3D" parent="NavRegion/Arena" unique_id=2020533337]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
+use_collision = true
+size = Vector3(44, 1, 44)
+material = SubResource("StandardMaterial3D_floor")
+
+[node name="WallN" type="CSGBox3D" parent="NavRegion/Arena" unique_id=1535474900]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.5, -21.5)
+use_collision = true
+size = Vector3(44, 5, 1)
+material = SubResource("StandardMaterial3D_wall")
+
+[node name="WallS" type="CSGBox3D" parent="NavRegion/Arena" unique_id=1945578787]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.5, 21.5)
+use_collision = true
+size = Vector3(44, 5, 1)
+material = SubResource("StandardMaterial3D_wall")
+
+[node name="WallE" type="CSGBox3D" parent="NavRegion/Arena" unique_id=1799496592]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 21.5, 2.5, 0)
+use_collision = true
+size = Vector3(1, 5, 44)
+material = SubResource("StandardMaterial3D_wall")
+
+[node name="WallW" type="CSGBox3D" parent="NavRegion/Arena" unique_id=1959771744]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -21.5, 2.5, 0)
+use_collision = true
+size = Vector3(1, 5, 44)
+material = SubResource("StandardMaterial3D_wall")
+
+[node name="Pillar1" type="CSGBox3D" parent="NavRegion/Arena" unique_id=1920132395]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 2, -8)
+use_collision = true
+size = Vector3(1.6, 4, 1.6)
+material = SubResource("StandardMaterial3D_struct")
+
+[node name="Pillar2" type="CSGBox3D" parent="NavRegion/Arena" unique_id=1935861395]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 2, -8)
+use_collision = true
+size = Vector3(1.6, 4, 1.6)
+material = SubResource("StandardMaterial3D_struct")
+
+[node name="Pillar3" type="CSGBox3D" parent="NavRegion/Arena" unique_id=382031852]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 2, 8)
+use_collision = true
+size = Vector3(1.6, 4, 1.6)
+material = SubResource("StandardMaterial3D_struct")
+
+[node name="Pillar4" type="CSGBox3D" parent="NavRegion/Arena" unique_id=1607311103]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 2, 8)
+use_collision = true
+size = Vector3(1.6, 4, 1.6)
+material = SubResource("StandardMaterial3D_struct")
+
+[node name="Crate1" type="CSGBox3D" parent="NavRegion/Arena" unique_id=70971478]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.7, -6)
+use_collision = true
+size = Vector3(2.4, 1.4, 1.1)
+material = SubResource("StandardMaterial3D_crate")
+
+[node name="Obstacle1" type="NavigationObstacle3D" parent="NavRegion/Arena/Crate1" unique_id=1213305252]
+radius = 1.4
+height = 1.5
+
+[node name="Crate2" type="CSGBox3D" parent="NavRegion/Arena" unique_id=334446413]
+transform = Transform3D(0.81915206, 0, 0.57357645, 0, 1, 0, -0.57357645, 0, 0.81915206, -6, 0.7, 2)
+use_collision = true
+size = Vector3(2.4, 1.4, 1.1)
+material = SubResource("StandardMaterial3D_crate")
+
+[node name="Obstacle2" type="NavigationObstacle3D" parent="NavRegion/Arena/Crate2" unique_id=338022756]
+radius = 1.4
+height = 1.5
+
+[node name="Crate3" type="CSGBox3D" parent="NavRegion/Arena" unique_id=1359774669]
+transform = Transform3D(0.90630776, 0, -0.42261827, 0, 1, 0, 0.42261827, 0, 0.90630776, 6, 0.7, 3)
+use_collision = true
+size = Vector3(2.4, 1.4, 1.1)
+material = SubResource("StandardMaterial3D_crate")
+
+[node name="Obstacle3" type="NavigationObstacle3D" parent="NavRegion/Arena/Crate3" unique_id=1928418946]
+radius = 1.4
+height = 1.5
+
+[node name="Crate4" type="CSGBox3D" parent="NavRegion/Arena" unique_id=1139287581]
+transform = Transform3D(0.34202015, 0, 0.9396926, 0, 1, 0, -0.9396926, 0, 0.34202015, -12, 0.7, -10)
+use_collision = true
+size = Vector3(2.4, 1.4, 1.1)
+material = SubResource("StandardMaterial3D_crate")
+
+[node name="Obstacle4" type="NavigationObstacle3D" parent="NavRegion/Arena/Crate4" unique_id=504197500]
+radius = 1.4
+height = 1.5
+
+[node name="Crate5" type="CSGBox3D" parent="NavRegion/Arena" unique_id=510159395]
+transform = Transform3D(0.49999997, 0, -0.86602545, 0, 1, 0, 0.86602545, 0, 0.49999997, 12, 0.7, -11)
+use_collision = true
+size = Vector3(2.4, 1.4, 1.1)
+material = SubResource("StandardMaterial3D_crate")
+
+[node name="Obstacle5" type="NavigationObstacle3D" parent="NavRegion/Arena/Crate5" unique_id=1264334317]
+radius = 1.4
+height = 1.5
+
+[node name="Crate6" type="CSGBox3D" parent="NavRegion/Arena" unique_id=1379535941]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.7, 9)
+use_collision = true
+size = Vector3(3, 1.4, 1.2)
+material = SubResource("StandardMaterial3D_crate")
+
+[node name="Obstacle6" type="NavigationObstacle3D" parent="NavRegion/Arena/Crate6" unique_id=1883519989]
+radius = 1.6
+height = 1.5
+
+[node name="Crate7" type="CSGBox3D" parent="NavRegion/Arena" unique_id=1041217726]
+transform = Transform3D(0.9396926, 0, 0.34202012, 0, 1, 0, -0.34202012, 0, 0.9396926, -14, 0.7, 10)
+use_collision = true
+size = Vector3(2.4, 1.4, 1.1)
+material = SubResource("StandardMaterial3D_crate")
+
+[node name="Obstacle7" type="NavigationObstacle3D" parent="NavRegion/Arena/Crate7" unique_id=2117074159]
+radius = 1.4
+height = 1.5
+
+[node name="Crate8" type="CSGBox3D" parent="NavRegion/Arena" unique_id=1530346869]
+transform = Transform3D(0.8660254, 0, -0.5, 0, 1, 0, 0.5, 0, 0.8660254, 14, 0.7, 11)
+use_collision = true
+size = Vector3(2.4, 1.4, 1.1)
+material = SubResource("StandardMaterial3D_crate")
+
+[node name="Obstacle8" type="NavigationObstacle3D" parent="NavRegion/Arena/Crate8" unique_id=1978178888]
+radius = 1.4
+height = 1.5
+
+[node name="Platform" type="CSGBox3D" parent="NavRegion/Arena" unique_id=720748488]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -16, 1.35, -16)
+use_collision = true
+size = Vector3(8, 0.5, 8)
+material = SubResource("StandardMaterial3D_struct")
+
+[node name="Ramp" type="CSGBox3D" parent="NavRegion/Arena" unique_id=846725614]
+transform = Transform3D(1, 0, 0, 0, 0.9702957, 0.2419219, 0, -0.2419219, 0.9702957, -16, 0.62, -9.2)
+use_collision = true
+size = Vector3(3, 0.3, 7)
+material = SubResource("StandardMaterial3D_struct")
+
+[node name="CoverPoints" type="Node3D" parent="." unique_id=2026249255]
+
+[node name="CP1" type="Marker3D" parent="CoverPoints" unique_id=1689047908 groups=["cover_point"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -7.6)
+
+[node name="CP2" type="Marker3D" parent="CoverPoints" unique_id=219405049 groups=["cover_point"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -4.4)
+
+[node name="CP3" type="Marker3D" parent="CoverPoints" unique_id=742602910 groups=["cover_point"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.2, 0, 0.8)
+
+[node name="CP4" type="Marker3D" parent="CoverPoints" unique_id=2060451899 groups=["cover_point"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.8, 0, 3.2)
+
+[node name="CP5" type="Marker3D" parent="CoverPoints" unique_id=164533264 groups=["cover_point"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.4, 0, 1.8)
+
+[node name="CP6" type="Marker3D" parent="CoverPoints" unique_id=712603814 groups=["cover_point"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.8, 0, 4.2)
+
+[node name="CP7" type="Marker3D" parent="CoverPoints" unique_id=1172998397 groups=["cover_point"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -12.8, 0, -11.4)
+
+[node name="CP8" type="Marker3D" parent="CoverPoints" unique_id=1518711397 groups=["cover_point"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 13, 0, -12.4)
+
+[node name="CP9" type="Marker3D" parent="CoverPoints" unique_id=939321434 groups=["cover_point"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 10.6)
+
+[node name="CP10" type="Marker3D" parent="CoverPoints" unique_id=1303151035 groups=["cover_point"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 7.4)
+
+[node name="CP11" type="Marker3D" parent="CoverPoints" unique_id=283225243 groups=["cover_point"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -14.6, 0, 11.4)
+
+[node name="CP12" type="Marker3D" parent="CoverPoints" unique_id=655789347 groups=["cover_point"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 14.7, 0, 12.4)
+
+[node name="CP13" type="Marker3D" parent="CoverPoints" unique_id=849953347 groups=["cover_point"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 0, -9.8)
+
+[node name="CP14" type="Marker3D" parent="CoverPoints" unique_id=544586226 groups=["cover_point"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 0, -9.8)
+
+[node name="CP15" type="Marker3D" parent="CoverPoints" unique_id=356556350 groups=["cover_point"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9.8, 0, 8)
+
+[node name="CP16" type="Marker3D" parent="CoverPoints" unique_id=1714580038 groups=["cover_point"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 9.8, 0, 8)
+
+[node name="PlayerSpawn" type="Marker3D" parent="." unique_id=597002584]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.1, 18)
+
+[node name="EnemySpawns" type="Node3D" parent="." unique_id=2065503720]
+
+[node name="ES1" type="Marker3D" parent="EnemySpawns" unique_id=338726032 groups=["enemy_spawn"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -16, 1.7, -16)
+
+[node name="ES2" type="Marker3D" parent="EnemySpawns" unique_id=170793336 groups=["enemy_spawn"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 18, 0.1, -18)
+
+[node name="ES3" type="Marker3D" parent="EnemySpawns" unique_id=781925052 groups=["enemy_spawn"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.1, -19)
+
+[node name="ES4" type="Marker3D" parent="EnemySpawns" unique_id=319242683 groups=["enemy_spawn"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -19, 0.1, 4)
+
+[node name="ES5" type="Marker3D" parent="EnemySpawns" unique_id=939965939 groups=["enemy_spawn"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 19, 0.1, 6)
+
+[node name="Pickups" type="Node3D" parent="." unique_id=855889193]
+
+[node name="AmmoCrate1" parent="Pickups" unique_id=2072112715 instance=ExtResource("4")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10, 0, 14)
+type = 0
+
+[node name="AmmoCrate2" parent="Pickups" unique_id=601544113 instance=ExtResource("4")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 0, -14)
+type = 0
+
+[node name="HealthPack1" parent="Pickups" unique_id=763046806 instance=ExtResource("4")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16, 0, 16)
+
+[node name="HealthPack2" parent="Pickups" unique_id=1674936051 instance=ExtResource("4")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -16, 0, 16)
+
+[node name="ArmorShard1" parent="Pickups" unique_id=1042036913 instance=ExtResource("4")]
+type = 2
+amount = 25.0
+
+[node name="ArmorShard2" parent="Pickups" unique_id=542077616 instance=ExtResource("4")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -16, 1.6, -16)
+type = 2
+amount = 25.0
+
+[node name="Player" parent="." unique_id=1573335001 instance=ExtResource("2")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.1, 18)
+
+[node name="HUD" parent="." unique_id=1453085350 instance=ExtResource("3")]
+
+[node name="RunHUD" parent="." unique_id=540386620 instance=ExtResource("6")]
+
+[node name="RoomBuilder" type="Node" parent="." unique_id=1432386687]
+script = ExtResource("7")
+
+[node name="RunDirector" type="Node" parent="." unique_id=297470145]
+script = ExtResource("5")

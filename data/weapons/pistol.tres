@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="WeaponData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/weapons/weapon_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+weapon_name = "Pistol"
+damage = 25.0
+fire_rate = 5.0
+auto = false
+pellets = 1
+max_range = 120.0
+mag_size = 12
+start_reserve = 48
+max_reserve = 96
+reload_time = 1.4
+hip_spread_deg = 1.5
+ads_spread_deg = 0.3
+bloom_per_shot_deg = 0.5
+max_bloom_deg = 3.0
+recoil_pattern = Array[Vector2]([Vector2(0, 1.7), Vector2(0.35, 1.5), Vector2(-0.4, 1.6), Vector2(0.5, 1.4), Vector2(-0.35, 1.5)])
+recoil_recovery = 10.0
+ads_fov = 62.0
+ads_time = 0.12
+model_color = Color(0.22, 0.22, 0.26, 1)
+model_length = 0.26
+sound_radius = 25.0
