@@ -21,24 +21,51 @@ const ROOM_HALF_DEFAULT := Vector2(21.0, 21.0)
 const CORNER_NW := 0
 const CORNER_NE := 1
 
-## Seeded rectangular footprints (inner half-extents x,z): squares plus wide/deep
-## rectangles. The 21x21 entry matches the authored arena so the default look is
-## preserved.
+## Seeded rectangular footprints (inner half-extents x,z): a deliberately WIDE
+## spread of size + aspect ratio so consecutive rooms read as different spaces --
+## a cramped chamber, a long corridor, a vast arena, not just "another square".
+## The 21x21 entry matches the authored arena so the default look is preserved.
+## NOTE: layer footprint_pool values index into the combined [FOOTPRINTS +
+## L_FOOTPRINTS] list, so new rectangles MUST be appended (never inserted) -- an
+## insert would silently shift every L-shape index in LayerCatalog.
 const FOOTPRINTS: Array[Vector2] = [
-	Vector2(17.0, 17.0),  # compact square
-	Vector2(21.0, 21.0),  # standard square (authored size)
-	Vector2(24.0, 24.0),  # large square
-	Vector2(27.0, 16.0),  # wide hall (long along X)
-	Vector2(16.0, 27.0),  # deep hall (long along Z)
-	Vector2(26.0, 18.0),  # broad rectangle
+	Vector2(17.0, 17.0),  # 0: compact square
+	Vector2(21.0, 21.0),  # 1: standard square (authored size)
+	Vector2(24.0, 24.0),  # 2: large square
+	Vector2(27.0, 16.0),  # 3: wide hall (long along X)
+	Vector2(16.0, 27.0),  # 4: deep hall (long along Z)
+	Vector2(26.0, 18.0),  # 5: broad rectangle
+	Vector2(14.0, 14.0),  # 6: tight square (close-quarters, smallest)
+	Vector2(28.0, 11.0),  # 7: wide corridor (~2.5:1, long sightline along X)
+	Vector2(11.0, 28.0),  # 8: deep corridor (~2.5:1, long approach along Z)
+	Vector2(30.0, 28.0),  # 9: grand arena (vast open, largest)
 ]
 ## Seeded L-shaped footprints: a bounding half-extent with a rectangular notch
 ## (width,depth) cut from one north corner. The notch is smaller than the
 ## bounding box on both axes, so the north-centre (x=0) stays open for the gate.
+## Combined-list indices are FOOTPRINTS.size() + position (i.e. 10, 11, 12, 13).
 const L_FOOTPRINTS: Array[Dictionary] = [
 	{"half": Vector2(24.0, 24.0), "notch": Vector2(16.0, 16.0), "corner": CORNER_NE},
 	{"half": Vector2(24.0, 22.0), "notch": Vector2(15.0, 14.0), "corner": CORNER_NW},
 	{"half": Vector2(26.0, 20.0), "notch": Vector2(16.0, 12.0), "corner": CORNER_NE},
+	{"half": Vector2(26.0, 24.0), "notch": Vector2(18.0, 15.0), "corner": CORNER_NW},  # bold deep L
+]
+## Seeded T-shaped footprints: BOTH north corners notched (`tnotch` = per-corner
+## width,depth), leaving a wide south crossbar (the player-spawn edge) and a narrow
+## north stem that carries the exit gate. Symmetric across X. Combined-list indices
+## continue after the L-shapes: FOOTPRINTS.size() + L_FOOTPRINTS.size() + position.
+## The stem must stay wide enough for the gate, so tnotch.x < half.x by a clear margin.
+const T_FOOTPRINTS: Array[Dictionary] = [
+	{"half": Vector2(26.0, 22.0), "tnotch": Vector2(9.0, 12.0)},   # broad crossbar, slim stem
+	{"half": Vector2(24.0, 24.0), "tnotch": Vector2(8.0, 13.0)},
+]
+## Seeded plus/cross footprints: ALL FOUR corners notched (`notch` = per-corner
+## width,depth), leaving a central crossing + four arms (N arm = gate, S arm = spawn,
+## E/W arms = flanking sightlines). Symmetric across X and Z. Combined-list indices
+## continue after the T-shapes. The notch must stay small enough to leave wide arms.
+const PLUS_FOOTPRINTS: Array[Dictionary] = [
+	{"half": Vector2(26.0, 24.0), "notch": Vector2(10.0, 11.0)},
+	{"half": Vector2(24.0, 24.0), "notch": Vector2(9.0, 10.0)},
 ]
 ## Milestone (boss) rooms always use a generous, un-notched square arena.
 const MILESTONE_FOOTPRINT := Vector2(24.0, 24.0)
@@ -89,10 +116,15 @@ var _inner_limit := ROOM_HALF_DEFAULT - Vector2(EDGE_MARGIN, EDGE_MARGIN)
 var _player_spawn_pos := Vector3(0.0, 0.0, ROOM_HALF_DEFAULT.y - SPAWN_INSET)
 var _min_spawn_dist := MIN_ENEMY_SPAWN_DIST
 # L-shape notch: (width, depth) cut from a north corner; ZERO = plain rectangle.
+# (For a T this carries the per-corner notch size; both north corners use it.)
 var _notch := Vector2.ZERO
 var _notch_corner := CORNER_NE
-var _notch_min := Vector2.ZERO  # world XZ rect of the notch, when present
+var _notch_min := Vector2.ZERO  # world XZ rect of the FIRST notch (single-notch L compat)
 var _notch_max := Vector2.ZERO
+# Every bare-corner rect for the current footprint, so _in_notch covers them uniformly
+# (rect = 0, L = 1, T = 2). _notch_min/_max above mirror the first entry for the L tests.
+var _notches: Array[Dictionary] = []  # each {min: Vector2, max: Vector2}
+var _shape := "rect"                   # "rect" | "L" | "T" -- selects the shell builder
 
 var _shell: Node3D
 var _generated: Node3D
@@ -267,6 +299,7 @@ func _choose_dimensions(archetype: Dictionary, rng: RandomNumberGenerator,
 	_room_half = fp.half
 	_notch = fp.notch
 	_notch_corner = int(fp.corner)
+	_shape = String(fp.get("shape", "rect"))
 	_inner_limit = _room_half - Vector2(EDGE_MARGIN, EDGE_MARGIN)
 	_compute_notch_rect()
 	_player_spawn_pos = Vector3(0.0, 0.0, _room_half.y - SPAWN_INSET)
@@ -279,50 +312,85 @@ func _choose_dimensions(archetype: Dictionary, rng: RandomNumberGenerator,
 				_player_spawn_pos.z)
 
 
-## Pure footprint pick: {half: Vector2, notch: Vector2, corner: int}. Seeded ->
-## reproducible; isolated so the headless test can assert variety + determinism
-## without side effects. Rectangles carry a zero notch; L-shapes carry a notch.
-## A layer profile may supply `footprint_pool` (indices into the combined list) to
-## bias the shape; absent/empty = the full range (the endless-mode default).
+## Pure footprint pick: {half, notch, corner, shape}. Seeded -> reproducible; isolated
+## so the headless test can assert variety + determinism without side effects.
+## Rectangles carry a zero notch; L-shapes carry a notch; T-shapes carry a per-corner
+## notch + shape "T". A layer profile may supply `footprint_pool` (indices into the
+## combined list) to bias the shape; absent/empty = the full range (endless default).
 func _pick_footprint(rng: RandomNumberGenerator, profile: Dictionary = {}) -> Dictionary:
 	var pool: Array = profile.get("footprint_pool", [])
 	if pool.is_empty():
-		return _footprint_by_index(rng.randi_range(0, FOOTPRINTS.size() + L_FOOTPRINTS.size() - 1))
+		return _footprint_by_index(rng.randi_range(0, FOOTPRINTS.size()
+				+ L_FOOTPRINTS.size() + T_FOOTPRINTS.size() + PLUS_FOOTPRINTS.size() - 1))
 	return _footprint_by_index(int(pool[rng.randi_range(0, pool.size() - 1)]))
 
 
-## Resolve a combined-list index (0..FOOTPRINTS+L_FOOTPRINTS-1) to a footprint dict:
-## the first FOOTPRINTS.size() are rectangles (zero notch), the rest are L-shapes.
+## Resolve a combined-list index to a footprint dict. The list is four segments in
+## order: FOOTPRINTS (rectangles, zero notch) then L_FOOTPRINTS (one north-corner
+## notch) then T_FOOTPRINTS (both north corners) then PLUS_FOOTPRINTS (all four corners).
+## Every return carries a `notch`/`corner` (so the single-notch helpers + run_smoke's
+## _fp_key never KeyError) and a `shape` tag that selects the shell builder.
 func _footprint_by_index(idx: int) -> Dictionary:
 	if idx < FOOTPRINTS.size():
-		return {"half": FOOTPRINTS[idx], "notch": Vector2.ZERO, "corner": CORNER_NE}
-	return L_FOOTPRINTS[idx - FOOTPRINTS.size()]
+		return {"half": FOOTPRINTS[idx], "notch": Vector2.ZERO, "corner": CORNER_NE, "shape": "rect"}
+	var rest := idx - FOOTPRINTS.size()
+	if rest < L_FOOTPRINTS.size():
+		var l: Dictionary = L_FOOTPRINTS[rest]
+		return {"half": l.half, "notch": l.notch, "corner": l.corner, "shape": "L"}
+	rest -= L_FOOTPRINTS.size()
+	if rest < T_FOOTPRINTS.size():
+		var t: Dictionary = T_FOOTPRINTS[rest]
+		return {"half": t.half, "notch": t.tnotch, "corner": CORNER_NE, "shape": "T"}
+	var p: Dictionary = PLUS_FOOTPRINTS[rest - T_FOOTPRINTS.size()]
+	return {"half": p.half, "notch": p.notch, "corner": CORNER_NE, "shape": "plus"}
 
 
-## World-space XZ rect of the notch for the current footprint (used to reject
-## obstacles/cover/spawns from the bare corner). Empty for a plain rectangle.
+## Build `_notches` (the world-space XZ rect of every bare corner) for the current
+## footprint, used to reject obstacles/cover/spawns from the bare corners. A plain
+## rectangle has none; an L has one; a T has both north corners. `_notch_min/_max`
+## mirror the first entry so the single-notch L tests keep reading them. Kept named
+## `_compute_notch_rect` so l_room_test / room_size_preview (which call it directly
+## after setting the fields by hand, without _shape) still work via the _notch path.
 func _compute_notch_rect() -> void:
-	if _notch == Vector2.ZERO:
-		_notch_min = Vector2.ZERO
-		_notch_max = Vector2.ZERO
-		return
+	_notches.clear()
 	var hx := _room_half.x
 	var hz := _room_half.y
-	if _notch_corner == CORNER_NE:
-		_notch_min = Vector2(hx - _notch.x, -hz)
-		_notch_max = Vector2(hx, -hz + _notch.y)
-	else:  # CORNER_NW
-		_notch_min = Vector2(-hx, -hz)
-		_notch_max = Vector2(-hx + _notch.x, -hz + _notch.y)
+	if _shape == "plus":
+		# All four corners cut by the per-corner notch. Symmetric across X and Z.
+		var nx := _notch.x
+		var nz := _notch.y
+		_notches.append({"min": Vector2(hx - nx, -hz), "max": Vector2(hx, -hz + nz)})       # NE
+		_notches.append({"min": Vector2(-hx, -hz), "max": Vector2(-hx + nx, -hz + nz)})      # NW
+		_notches.append({"min": Vector2(hx - nx, hz - nz), "max": Vector2(hx, hz)})          # SE
+		_notches.append({"min": Vector2(-hx, hz - nz), "max": Vector2(-hx + nx, hz)})        # SW
+	elif _shape == "T":
+		# Both north corners cut by the per-corner notch (width, depth). Symmetric.
+		_notches.append({"min": Vector2(hx - _notch.x, -hz), "max": Vector2(hx, -hz + _notch.y)})
+		_notches.append({"min": Vector2(-hx, -hz), "max": Vector2(-hx + _notch.x, -hz + _notch.y)})
+	elif _notch != Vector2.ZERO:
+		# Single north-corner L notch (NE or NW).
+		if _notch_corner == CORNER_NE:
+			_notches.append({"min": Vector2(hx - _notch.x, -hz), "max": Vector2(hx, -hz + _notch.y)})
+		else:  # CORNER_NW
+			_notches.append({"min": Vector2(-hx, -hz), "max": Vector2(-hx + _notch.x, -hz + _notch.y)})
+	if _notches.is_empty():
+		_notch_min = Vector2.ZERO
+		_notch_max = Vector2.ZERO
+	else:
+		_notch_min = _notches[0].min
+		_notch_max = _notches[0].max
 
 
-## True when an XZ point (x in .x, z in .y) lies in (or within `margin` of) the
-## notch — i.e. outside the L-shaped playable area.
+## True when an XZ point (x in .x, z in .y) lies in (or within `margin` of) ANY of
+## the footprint's bare corners — i.e. outside the playable L/T area.
 func _in_notch(xz: Vector2, margin: float) -> bool:
-	if _notch == Vector2.ZERO:
-		return false
-	return xz.x >= _notch_min.x - margin and xz.x <= _notch_max.x + margin \
-			and xz.y >= _notch_min.y - margin and xz.y <= _notch_max.y + margin
+	for n in _notches:
+		var nmin: Vector2 = n.min
+		var nmax: Vector2 = n.max
+		if xz.x >= nmin.x - margin and xz.x <= nmax.x + margin \
+				and xz.y >= nmin.y - margin and xz.y <= nmax.y + margin:
+			return true
+	return false
 
 
 ## Build the floor + four walls for the current footprint under the persistent
@@ -331,7 +399,11 @@ func _in_notch(xz: Vector2, margin: float) -> bool:
 func _build_shell() -> void:
 	for child in _shell.get_children():
 		child.queue_free()
-	if _notch == Vector2.ZERO:
+	if _shape == "plus":
+		_build_plus_shell()
+	elif _shape == "T":
+		_build_t_shell()
+	elif _notch == Vector2.ZERO:
 		_build_box_shell()
 	else:
 		_build_l_shell()
@@ -402,6 +474,101 @@ func _build_l_shell() -> void:
 		var mat: StandardMaterial3D = _active_floor_mat \
 				if String(part.name).begins_with("Floor") else _active_wall_mat
 		_add_shell_box(part.name, part.size, pos, mat)
+
+
+## T-shaped shell: BOTH north corners notched, leaving a wide south crossbar (the
+## player-spawn edge) and a narrow north stem (the exit gate). The floor is two boxes
+## -- a full-width south body + a centred north stem -- so the two bare north corners
+## get no floor/navmesh there; four outer walls + four concave walls enclose it.
+## Symmetric across X (no mirror). `_notch` carries the per-corner (width, depth).
+func _build_t_shell() -> void:
+	var hx := _room_half.x
+	var hz := _room_half.y
+	var nw := _notch.x
+	var nd := _notch.y
+	var m := FLOOR_MARGIN
+	var t := WALL_THICKNESS
+	var h := WALL_HEIGHT
+	var wy := h * 0.5
+	var stem_hx := hx - nw  # half-width of the north stem
+	var parts: Array[Dictionary] = [
+		# Floor: full-width south body (flush at the concave north edge z=-hz+nd) +
+		# a centred north stem (flush at its concave E/W faces x=+/-stem_hx). They abut
+		# coplanar at z=-hz+nd so the navmesh bakes continuous from crossbar to stem.
+		{"name": "Floor", "size": Vector3(2.0 * hx + 2.0 * m, 1.0, 2.0 * hz + m - nd),
+			"pos": Vector3(0.0, -0.5, (nd + m) * 0.5)},
+		{"name": "Floor2", "size": Vector3(2.0 * stem_hx, 1.0, nd + m),
+			"pos": Vector3(0.0, -0.5, -hz + (nd - m) * 0.5)},
+		# Outer walls: south full; east + west span the body only; north spans the stem.
+		{"name": "WallS", "size": Vector3(2.0 * hx + 2.0 * t, h, t),
+			"pos": Vector3(0.0, wy, hz + t * 0.5)},
+		{"name": "WallE", "size": Vector3(t, h, 2.0 * hz - nd + 2.0 * t),
+			"pos": Vector3(hx + t * 0.5, wy, nd * 0.5)},
+		{"name": "WallW", "size": Vector3(t, h, 2.0 * hz - nd + 2.0 * t),
+			"pos": Vector3(-hx - t * 0.5, wy, nd * 0.5)},
+		{"name": "WallN", "size": Vector3(2.0 * stem_hx + 2.0 * t, h, t),
+			"pos": Vector3(0.0, wy, -hz - t * 0.5)},
+		# Concave walls closing the two bare north corners: a crossbar-top segment +
+		# a stem-side segment on each side.
+		{"name": "WallNotchEH", "size": Vector3(nw + 2.0 * t, h, t),
+			"pos": Vector3(hx - nw * 0.5, wy, -hz + nd - t * 0.5)},
+		{"name": "WallNotchEV", "size": Vector3(t, h, nd + 2.0 * t),
+			"pos": Vector3(stem_hx + t * 0.5, wy, -hz + nd * 0.5)},
+		{"name": "WallNotchWH", "size": Vector3(nw + 2.0 * t, h, t),
+			"pos": Vector3(-(hx - nw * 0.5), wy, -hz + nd - t * 0.5)},
+		{"name": "WallNotchWV", "size": Vector3(t, h, nd + 2.0 * t),
+			"pos": Vector3(-(stem_hx + t * 0.5), wy, -hz + nd * 0.5)},
+	]
+	for part in parts:
+		var mat: StandardMaterial3D = _active_floor_mat \
+				if String(part.name).begins_with("Floor") else _active_wall_mat
+		_add_shell_box(part.name, part.size, part.pos, mat)
+
+
+## Plus/cross shell: ALL FOUR corners notched, leaving a central crossing + four arms
+## (south arm = player spawn, north arm = exit gate, east/west arms = flanking
+## sightlines). The floor is three boxes -- a full-width central band + a north arm +
+## a south arm -- so the four corners get no floor/navmesh; four arm-end walls + eight
+## concave walls (two per corner) enclose it. Symmetric across X and Z. `_notch` carries
+## the per-corner (width, depth).
+func _build_plus_shell() -> void:
+	var hx := _room_half.x
+	var hz := _room_half.y
+	var nw := _notch.x
+	var nd := _notch.y
+	var m := FLOOR_MARGIN
+	var t := WALL_THICKNESS
+	var h := WALL_HEIGHT
+	var wy := h * 0.5
+	var arm_hx := hx - nw    # half-width of the N/S arms
+	var band_hz := hz - nd   # half-depth of the central E/W band
+	# Floor: central full-width band + north arm + south arm (corners left floorless).
+	# The arms abut the band coplanar at z=+/-band_hz so the navmesh bakes continuous.
+	_add_shell_box("Floor", Vector3(2.0 * hx + 2.0 * m, 1.0, 2.0 * band_hz),
+			Vector3(0.0, -0.5, 0.0), _active_floor_mat)
+	_add_shell_box("Floor2", Vector3(2.0 * arm_hx, 1.0, nd + m),
+			Vector3(0.0, -0.5, -hz + (nd - m) * 0.5), _active_floor_mat)
+	_add_shell_box("Floor3", Vector3(2.0 * arm_hx, 1.0, nd + m),
+			Vector3(0.0, -0.5, hz - (nd - m) * 0.5), _active_floor_mat)
+	# Outer arm-end walls: N/S span the arm width, E/W span the band depth.
+	_add_shell_box("WallN", Vector3(2.0 * arm_hx + 2.0 * t, h, t),
+			Vector3(0.0, wy, -hz - t * 0.5), _active_wall_mat)
+	_add_shell_box("WallS", Vector3(2.0 * arm_hx + 2.0 * t, h, t),
+			Vector3(0.0, wy, hz + t * 0.5), _active_wall_mat)
+	_add_shell_box("WallE", Vector3(t, h, 2.0 * band_hz + 2.0 * t),
+			Vector3(hx + t * 0.5, wy, 0.0), _active_wall_mat)
+	_add_shell_box("WallW", Vector3(t, h, 2.0 * band_hz + 2.0 * t),
+			Vector3(-hx - t * 0.5, wy, 0.0), _active_wall_mat)
+	# Eight concave walls closing the four bare corners (a band-edge + an arm-edge each).
+	var i := 0
+	for c in [Vector2(1.0, -1.0), Vector2(-1.0, -1.0), Vector2(1.0, 1.0), Vector2(-1.0, 1.0)]:
+		var sx: float = c.x
+		var sz: float = c.y
+		_add_shell_box("WallNotchH%d" % i, Vector3(nw + 2.0 * t, h, t),
+				Vector3(sx * (hx - nw * 0.5), wy, sz * (band_hz + t * 0.5)), _active_wall_mat)
+		_add_shell_box("WallNotchV%d" % i, Vector3(t, h, nd + 2.0 * t),
+				Vector3(sx * (arm_hx + t * 0.5), wy, sz * (hz - nd * 0.5)), _active_wall_mat)
+		i += 1
 
 
 func _add_shell_box(box_name: String, size: Vector3, pos: Vector3,
@@ -752,7 +919,14 @@ func _gen_bunker(rng: RandomNumberGenerator) -> Array[Dictionary]:
 
 func _gen_maze_lanes(rng: RandomNumberGenerator) -> Array[Dictionary]:
 	var boxes: Array[Dictionary] = []
-	var east_west := rng.randf() > 0.5  # walls run along X, lanes offset in Z
+	# Walls run along X, lanes offset in Z. In a corridor (one axis much longer) run
+	# the lanes along the LONG axis, so the long walls never span the narrow axis and
+	# get rejected; near-square rooms keep the seeded coin-flip for variety.
+	var east_west: bool
+	if absf(_inner_limit.x - _inner_limit.y) > 6.0:
+		east_west = _inner_limit.x > _inner_limit.y
+	else:
+		east_west = rng.randf() > 0.5
 	var run_il: float = _inner_limit.x if east_west else _inner_limit.y
 	var lane_il: float = _inner_limit.y if east_west else _inner_limit.x
 	var lanes := _grid(5, lane_il * 0.58)  # ~ +/-11 at the default size

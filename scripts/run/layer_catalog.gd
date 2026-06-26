@@ -21,8 +21,10 @@ extends RefCounted
 enum RoomType { COMBAT, FRAGMENT, GHOST }
 
 ## footprint_pool values are indices into RoomBuilder's combined footprint list
-## [FOOTPRINTS (0-5) + L_FOOTPRINTS (6-8)]:
-##   0=17sq 1=21sq 2=24sq 3=27x16 4=16x27 5=26x18  6,7,8 = L-shapes.
+## [FOOTPRINTS (0-9) + L_FOOTPRINTS (10-13) + T_FOOTPRINTS (14-15) + PLUS_FOOTPRINTS (16-17)]:
+##   0=17sq 1=21sq 2=24sq 3=27x16 4=16x27 5=26x18 6=14tight 7=28x11corridor
+##   8=11x28corridor 9=30x28grand   10,11,12,13 = L-shapes (13 = bold deep L)
+##   14,15 = T-shapes (wide crossbar + north stem)   16,17 = plus/cross (four arms).
 ## An empty/absent pool means "the full range" (the endless-mode default).
 const LAYERS: Array[Dictionary] = [
 	{
@@ -36,7 +38,10 @@ const LAYERS: Array[Dictionary] = [
 		"room_sequence": [RoomType.COMBAT, RoomType.COMBAT, RoomType.FRAGMENT,
 			RoomType.COMBAT, RoomType.GHOST, RoomType.COMBAT],
 		"archetype_pool": ["open_field", "scattered_cover", "pillar_hall"],
-		"footprint_pool": [2, 3, 4, 5, 6, 7, 8],         # large + irregular; no compact/standard square
+		# Large + corridor + irregular; skips the small/standard/tight squares (0,1,6)
+		# so the Heap reads big + oppressive. 2-5 large rects, 7/8 corridors, 9 grand,
+		# 10-13 all L-shapes (incl. the bold deep L), 14-15 T-shapes, 16-17 plus/cross.
+		"footprint_pool": [2, 3, 4, 5, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17],
 		"mood_tint": Color(0.42, 0.62, 0.72),            # cold, sickly blue-green
 		"mood_strength": 0.7,                            # how hard to pull the sun toward the tint
 		"sun_energy_factor": 0.6,                        # dim + oppressive vs the authored arena
@@ -66,7 +71,10 @@ const LAYERS: Array[Dictionary] = [
 		# is literally a stack -- so it's the layer that opts into the vertical "tiers"
 		# archetype (raised platforms the player climbs; enemies stay grounded).
 		"archetype_pool": ["pillar_hall", "maze_lanes", "arena_cross", "tiers"],
-		"footprint_pool": [1, 2, 3, 4, 5],               # rectangular only -- the Stack has no L-rooms
+		# Rectangular only (no L-rooms): the Stack's "strict grid". Now spans the full
+		# rect range -- tight chamber (6), corridors (7,8) and the grand arena (9) --
+		# so a stack of memory reads as cramped cells AND long halls, not one size.
+		"footprint_pool": [1, 2, 3, 4, 5, 6, 7, 8, 9],
 		"mood_tint": Color(0.70, 0.78, 0.86),            # sterile steel-blue: order, not decay
 		"mood_strength": 0.6,
 		"sun_energy_factor": 0.85,                       # cleaner + brighter than the Heap

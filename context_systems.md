@@ -34,8 +34,13 @@ the MetaProgression layer described below is the only thing that survives).
   the first procedural build the authored interior (pillars/crates/platform/ramp),
   cover markers AND the authored Floor + 4 walls shell are all retired at runtime.
   **Variable footprint:** each room picks a seeded footprint (inner half-extents
-  x,z from `FOOTPRINTS` — squares 17/21/24 plus wide/deep rectangles like 27x16
-  and 16x27; milestone rooms forced to a 24x24 square) and builds its own sized
+  x,z from `FOOTPRINTS`). The pool is a deliberately WIDE spread of size + aspect
+  so consecutive rooms read as different spaces ("stronger shape contrast" variety
+  lever, harness #38): squares 14(tight)/17/21/24, wide/deep rectangles 27x16 /
+  16x27 / 26x18, **corridors** 28x11 / 11x28 (~2.5:1), and a **grand** 30x28 arena;
+  milestone rooms forced to a 24x24 square. GOTCHA: `LayerCatalog` footprint pools
+  index the COMBINED `FOOTPRINTS+L_FOOTPRINTS` list, so new rects are appended (never
+  inserted) — an insert silently shifts every L-shape index. Each builds its own sized
   shell (floor + 4 walls as StaticBody3D, in a `GeneratedShell` container under
   NavRegion) so the arena is a different size AND aspect each room. `_inner_limit`
   (per-axis `Vector2`), player spawn (the live `PlayerSpawn` marker is moved to
@@ -43,15 +48,20 @@ the MetaProgression layer described below is the only thing that survives).
   `build_room`), and min enemy distance all derive from the chosen footprint;
   structured archetypes scale their extents off `_inner_limit` per-axis so they
   fill any size/aspect (and reproduce the authored look at the default 21x21).
-  Some rooms are **L-shaped**: an `L_FOOTPRINTS` entry cuts a rectangular notch
-  from a north corner (away from the south spawn + north-centre gate). The shell
-  then builds the floor from two boxes — the notch corner left bare, so the
-  navmesh baker makes no floor/navmesh there — plus two extra walls closing the
-  concave corner. Obstacles, cover, enemy spawns and pickups are geometrically
-  rejected from the notch (`_in_notch`), so nothing lands in the bare corner
-  regardless of navmesh sync timing; `_rebake` also `map_force_update`s the
-  navigation map so validation reads the fresh room. Verified by
-  `tools/l_room_test.tscn`.
+  Some rooms are **notched**: an `L_FOOTPRINTS` entry cuts ONE north-corner notch
+  (an **L**); a `T_FOOTPRINTS` entry cuts BOTH north corners (a **T** — wide south
+  crossbar for the spawn + narrow north stem for the gate); a `PLUS_FOOTPRINTS` entry
+  cuts ALL FOUR corners (a **plus/cross** — central crossing + four arms), all keeping
+  the south spawn + north-centre gate on floor. The notch system is a LIST (`_notches`:
+  rect=0, L=1, T=2, plus=4) so `_in_notch` covers every bare corner uniformly; the shell
+  builds the floor from multiple boxes — each bare corner left floorless, so the navmesh
+  baker makes no floor/navmesh there — plus extra walls closing the concave corners
+  (`_build_l_shell` / `_build_t_shell` / `_build_plus_shell`, dispatched by the footprint's
+  `shape` tag). Obstacles, cover, enemy spawns and pickups are geometrically rejected from
+  every notch (`_in_notch`), so nothing lands in a bare corner regardless of navmesh sync
+  timing; `_rebake` also `map_force_update`s the navigation map so validation reads the
+  fresh room. Verified by `tools/l_room_test.tscn` (L) + `tools/t_room_test.tscn` (T, #39)
+  + `tools/plus_room_test.tscn` (plus, #40).
   Six layout archetypes (Open Field, Scattered Cover, Pillar Hall — rooms 2-3;
   Bunker, Maze Lanes, Arena Cross unlock from room 4), each with a Sun mood
   tint and a banner title ("ROOM 5 - PILLAR HALL"). Obstacles are

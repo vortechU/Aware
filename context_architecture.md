@@ -420,6 +420,60 @@ scripts. On Windows the Godot exe detaches from the console, so use
     (snapshots `meta_progress.cfg`): a buy persists + maxes the unlock; an armed player gets
     the owned word while an unarmed one stays vanilla; a trait card grants then ranks Heavy;
     a non-adjective id is rejected.
+38. `res://tools/shape_contrast_test.tscn` — procgen variety lever "stronger shape
+    contrast" → `SHAPE_CONTRAST_OK`. The rectangular `FOOTPRINTS` pool was widened from
+    medium rects into a deliberate spread: a **tight** close-quarters chamber (14x14),
+    **corridors** (28x11 / 11x28, ~2.5:1), and a **grand** arena (30x28), plus a bold deep
+    L. Pure: the new classes exist; the combined-list index split still holds (rect indices
+    have zero notch, L indices are notched); the endless picker's area spread genuinely
+    widened (a tight room AND a grand room appear, max/min area ≥ 4x, ≥10 classes); and the
+    layer pools point at the right SHIFTED indices (Heap skips the small/standard/tight
+    squares 0/1/6 but keeps corridors+grand+L; Stack stays rectangular-only and gained the
+    new rects). Scene: each new footprint is forced through the REAL `build_room` via a
+    single-index `footprint_pool` and must validate OK (navmesh bakes, reachable squad +
+    cover fit) — proving they're playable, not just data. **GOTCHA carried in the code:**
+    `footprint_pool` values index the COMBINED `[FOOTPRINTS + L_FOOTPRINTS]` list, so new
+    rectangles MUST be appended (never inserted) or every L-shape index in `LayerCatalog`
+    silently shifts; `descent_test` derives the rect/L boundary from `FOOTPRINTS.size()`
+    rather than hardcoding it. `maze_lanes` now runs its walls along the LONG axis in
+    corridors so long walls don't choke a narrow axis.
+39. `res://tools/t_room_test.tscn` — stronger shape contrast Pass 2 (the T-shaped
+    footprint family) → `T_ROOM_OK`. A T is the L generalised: an L is one north-corner
+    notch, a T is BOTH north corners, leaving a wide south crossbar (player spawn) + a
+    narrow north stem (the exit gate). The notch system is now a LIST (`_notches`: rect=0,
+    L=1, T=2) so `_in_notch` covers every bare corner uniformly; `_notch`/`_notch_min/_max`
+    still mirror the first notch for the single-notch L tests (`l_room`, `run_smoke`). The
+    combined footprint list gained a third segment `[FOOTPRINTS + L_FOOTPRINTS +
+    T_FOOTPRINTS]`; `_footprint_by_index` returns a `shape` tag ("rect"/"L"/"T") that
+    `_build_shell` dispatches on (`_build_t_shell`: 2 floor boxes + 4 outer + 4 concave
+    walls, symmetric across X). Pure: T_FOOTPRINTS exists, the index split holds, the Heap
+    pool opted into the T-shapes (14,15) while the Stack stayed rectangular-only. Scene:
+    forces a T via a single-index pool through the REAL build_room, asserts it validates OK,
+    the body centre + the north stem are both reachable from the spawn (crossbar connects to
+    stem), each bare north corner is a genuine unreachable hole (sampled at the DEEP outer
+    corner, clear of the walkable stem edge — wall tops bake isolated navmesh islands at
+    y~5, harmless + unreachable), and no obstacle/spawn/pickup lands in either corner.
+    GOTCHA: like l_room, pre-retire the authored CSG arena + settle 2 frames BEFORE
+    build_room, else its 44x44 floor bakes over the notch (build_room's internal 1-frame
+    retire isn't enough for CSG to clear).
+40. `res://tools/plus_room_test.tscn` — stronger shape contrast Pass 3 (the plus/cross
+    footprint family) → `PLUS_ROOM_OK`. A plus is the T generalised to ALL FOUR corners:
+    a central crossing + four arms (south = spawn, north = gate, east/west = flanking
+    sightlines). `_notches` carries 4 rects; `_build_plus_shell` = 3 floor boxes (central
+    full-width band + N arm + S arm) + 4 arm-end walls + 8 concave walls (a band-edge + an
+    arm-edge per corner, built in a 4-corner loop). Combined list is now FOUR segments
+    `[FOOTPRINTS + L + T + PLUS]` (plus at 16,17); Heap opted in, Stack rectangular-only.
+    Forces a plus via a single-index pool through the REAL build_room, asserts it validates,
+    the centre + all four arms are reachable from the spawn, all four deep corners are
+    unreachable holes, and nothing spawns in any corner. GOTCHAs carried: same pre-retire
+    + deep-corner-sampling as t_room; PLUS the E/W flanking arms are a narrow band pocket
+    that `scattered_cover` crates can carve, so the arm-reachability check samples a small
+    grid and requires ANY point reachable (a single probe can land on a carved spot).
+    GENERAL GOTCHA hit here: `for c in [Vector2(...), ...]` gives untyped elements, so
+    `var sx := c.x` fails to parse — annotate `var sx: float = c.x`; a parse error in
+    room_builder mid-test can produce a FALSE pass (the harness `_run` crashes before any
+    assertion runs, leaving `fails` empty), so always check the log for SCRIPT/Parse ERROR,
+    not just exit code.
 
 `--check-only --script` does NOT register autoloads, so scripts referencing
 `GameEvents`/`RunManager` must be checked via the in-engine .tscn harnesses.

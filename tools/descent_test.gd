@@ -44,9 +44,12 @@ func _part_a_pure() -> void:
 	var stack: Dictionary = LayerCatalog.profile_for_room(7)
 	_check(stack.get("arc", "") == "history", "the Stack should surface the History arc")
 	_check(FragmentDB.arc_fragments("history").size() >= 1, "the History arc needs fragments")
+	# Indices >= FOOTPRINTS.size() are notched shapes (L or T) in RoomBuilder's combined
+	# list; the Stack is rectangular-only. Derive the boundary so adding rects never breaks it.
+	var rect_count: int = (load("res://scripts/run/room_builder.gd") as GDScript).FOOTPRINTS.size()
 	for idx in stack.get("footprint_pool", []):
-		# Indices 6+ are L-shapes in RoomBuilder's combined list; the Stack has none.
-		_check(int(idx) < 6, "the Stack should be rectangular-only, saw footprint index %d" % int(idx))
+		_check(int(idx) < rect_count,
+				"the Stack should be rectangular-only, saw footprint index %d" % int(idx))
 
 
 # ---------------------------------------------------------------- B. scene
