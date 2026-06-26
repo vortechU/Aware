@@ -1,0 +1,25 @@
+[remap]
+
+importer="wavefront_obj"
+importer_version=1
+type="Mesh"
+uid="uid://c5oxxc6osw7d6"
+path="res://.godot/imported/template-wall-stairs.obj-f05c0803657e811951ce745b1c44a36a.mesh"
+
+[deps]
+
+files=["res://.godot/imported/template-wall-stairs.obj-f05c0803657e811951ce745b1c44a36a.mesh"]
+
+source_file="res://Assets/kenney_modular-space-kit_1.0/Models/OBJ format/template-wall-stairs.obj"
+dest_files=["res://.godot/imported/template-wall-stairs.obj-f05c0803657e811951ce745b1c44a36a.mesh", "res://.godot/imported/template-wall-stairs.obj-f05c0803657e811951ce745b1c44a36a.mesh"]
+
+[params]
+
+generate_tangents=true
+generate_lods=true
+generate_shadow_mesh=true
+generate_lightmap_uv2=false
+generate_lightmap_uv2_texel_size=0.2
+scale_mesh=Vector3(1, 1, 1)
+offset_mesh=Vector3(0, 0, 0)
+force_disable_mesh_compression=false

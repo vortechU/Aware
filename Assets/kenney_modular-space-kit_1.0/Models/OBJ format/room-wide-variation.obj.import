@@ -1,0 +1,25 @@
+[remap]
+
+importer="wavefront_obj"
+importer_version=1
+type="Mesh"
+uid="uid://darfle0x4oo7k"
+path="res://.godot/imported/room-wide-variation.obj-0deb4aae049f5de27f9df4bacf884cef.mesh"
+
+[deps]
+
+files=["res://.godot/imported/room-wide-variation.obj-0deb4aae049f5de27f9df4bacf884cef.mesh"]
+
+source_file="res://Assets/kenney_modular-space-kit_1.0/Models/OBJ format/room-wide-variation.obj"
+dest_files=["res://.godot/imported/room-wide-variation.obj-0deb4aae049f5de27f9df4bacf884cef.mesh", "res://.godot/imported/room-wide-variation.obj-0deb4aae049f5de27f9df4bacf884cef.mesh"]
+
+[params]
+
+generate_tangents=true
+generate_lods=true
+generate_shadow_mesh=true
+generate_lightmap_uv2=false
+generate_lightmap_uv2_texel_size=0.2
+scale_mesh=Vector3(1, 1, 1)
+offset_mesh=Vector3(0, 0, 0)
+force_disable_mesh_compression=false

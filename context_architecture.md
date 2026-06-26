@@ -474,6 +474,38 @@ scripts. On Windows the Godot exe detaches from the console, so use
     room_builder mid-test can produce a FALSE pass (the harness `_run` crashes before any
     assertion runs, leaving `fails` empty), so always check the log for SCRIPT/Parse ERROR,
     not just exit code.
+41. `res://tools/kit_room_test.tscn` — modular-kit room skin Pass B+C (Kenney space-station
+    kit re-skins the procedural shell, EVERY shape) → `KIT_ROOM_OK`. A layer profile carrying
+    a `"kit"` key makes RoomBuilder overlay the kit's modular meshes on the shell, recoloured
+    by the layer palette (`floor_color`/`wall_color` multiply the shared `colormap` atlas, so
+    the Heap reads dim green and the Stack steel-blue while keeping the kit's baked detail).
+    The skin is VISUAL ONLY: `_skin_shell` hides the gray shell box MeshInstances but keeps
+    their `StaticBody` collision, so the navmesh (NavigationMesh `geometry_parsed_geometry_type
+    = STATIC_COLLIDERS`, i.e. baked from colliders, NOT meshes) is unaffected — the kit
+    MultiMesh overlays are invisible to the bake. `_skin_shell` is GENERIC over shape: it walks
+    the shell's StaticBody boxes and, per box, tiles a floor (boxes named `Floor*`) or runs
+    wall modules (`Wall*`) using each box's own size+pos read from its `CollisionShape`
+    (`RoomKit.build_wall_box` derives the run's length/thickness/inward-facing from the box;
+    inward = toward origin, which also points at the floor for concave notch walls). So rect /
+    L / T / plus all skin uniformly, and the bare notch corners (no floor box) stay floorless.
+    `RoomKit` (`scripts/world/room_kit.gd`, `class_name RoomKit`) tiles floor + walls as
+    MultiMeshInstance3D (1 m modules, one batch each) and tints props via `tint_node`. Pure:
+    the kit loads its 1 m floor/wall modules and builds the colormap-x-tint material
+    (albedo_color = tint, albedo_texture kept); Heap vs Stack tints differ. Scene: a forced
+    kit'd RECTANGULAR room validates OK with `KitFloor` + four `KitWall*` overlays, the gray
+    `Floor` mesh hidden while its `StaticBody`+`CollisionShape3D` survive; a forced kit'd
+    T-shape gets `KitFloor`+`KitFloor2` + ≥2 `KitWallNotch*` overlays with NO kit floor tile
+    in its bare NE corner; an ENDLESS build (no `"kit"`) stays on the plain gray shell (the
+    gate). GATING: `build_room` only skins when `profile.has("kit")`, so ENDLESS + every
+    un-kitted layer is byte-for-byte unchanged. Real layers don't enable kits yet (capability
+    + forced-test first; next: add `"kit"` to Heap/Stack + update `layer_look_test`). GOTCHA
+    fixed here: `_build_shell` now clears old shell boxes IMMEDIATELY (`remove_child` + free,
+    not deferred `queue_free`), else the same-frame re-skin sees a lingering `Floor`/`Wall*`
+    that steals the new box's name and gets mis-skinned. Look eyeballed via
+    `tools/kit_preview.tscn` (Heap + Stack rect rooms) and `tools/kit_shapes_preview.tscn`
+    (real generated T + plus kit'd rooms), both NON-headless. `tools/kit_measure.tscn` is a
+    non-asserting diagnostic that dumps each kit piece's AABB (the module grid). See
+    **Modular kit skin** in `context_systems.md`.
 
 `--check-only --script` does NOT register autoloads, so scripts referencing
 `GameEvents`/`RunManager` must be checked via the in-engine .tscn harnesses.

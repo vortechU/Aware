@@ -908,3 +908,51 @@ spawn telegraphing VFX,
 remaining audio passes (footsteps, reload, pickups, UI, music, volume sliders);
 movement playtest tuning (`momentum_*` ramp, whether auto-vault-on-jump near
 crates feels too eager).
+
+## Modular kit skin (Kenney space-station)
+
+Real visuals over the procedural layout brain: the generated room's abstract shell
+(floor rects + wall lines) is *skinned* with a Kenney modular building kit instead of
+gray primitives. **Build-alongside / lowest-risk:** the skin is VISUAL ONLY — it adds
+non-colliding meshes layered over the existing, tested collision boxes; it never touches
+collision, navmesh, spawns, cover or validation. The navmesh bakes from colliders
+(NavigationMesh `geometry_parsed_geometry_type = STATIC_COLLIDERS`), so the overlay
+meshes are invisible to the bake. Assets live under `Assets/kenney_space-station-kit/`
+(GLB format; characters + the kit downloaded from kenney.nl).
+
+- **`RoomKit`** (`scripts/world/room_kit.gd`, `class_name RoomKit extends Resource`) — the
+  skin. The kit is a measured **1 m grid** (floor 1x1x0.3, wall 1 wide x 1 tall x 0.3
+  thick); `tile_floor` + `build_wall_run` lay floor tiles + wall courses as
+  **MultiMeshInstance3D** (thousands of 1 m modules, one draw batch each), `skin_box`
+  assembles a rectangular shell (floor + four `KitWall*` runs), and low-count props
+  instance their scene directly (`tint_node` recolours them). `RoomKit.space_station()`
+  returns the configured kit; per-layer kits become authored `.tres` later.
+- **Per-layer recolouring (major-transition variety)** — the kit shares one `colormap`
+  palette atlas across every piece, so a layer tint is applied as `albedo_color x texture`
+  (`_tint_material`, cached per colour, nearest-filtered). This **reuses the existing
+  per-layer palette** (`floor_color`/`wall_color`/`struct_color` already on each
+  LayerProfile): the Heap reads dim mossy green, the Stack steel-blue, etc., while the
+  kit keeps its baked panel detail. Each future layer (Cache/Kernel/I-O) gets its own kit
+  colouring for free.
+- **Generator hook** — `RoomBuilder._skin_shell(profile)` runs right after `_build_shell()`,
+  GATED on `profile.has("kit")`: it walks the shell's StaticBody boxes and, per box, tiles a
+  floor (`Floor*`) or runs wall modules (`Wall*`) read from the box's own size+pos, hiding
+  the gray box MeshInstances (keeping collision) and tinting by the layer palette. GENERIC
+  over shape — rect / L / T / plus all skin the same way, bare notch corners (no floor box)
+  stay floorless. ENDLESS + every un-kitted layer have no `"kit"` key → byte-for-byte
+  unchanged. Kit nodes live under `GeneratedShell`, cleared on the next `_build_shell` (which
+  now clears IMMEDIATELY via `remove_child`+free, so the same-frame re-skin doesn't trip on a
+  lingering deferred-freed `Floor`/`Wall*` stealing the new box's name).
+- **Status** — Pass A (RoomKit + recolour proof) + Pass B (rect-shell skin wired, gated) +
+  Pass C (generic skin over ALL shapes incl. notched L/T/plus) shipped; `KIT_ROOM_OK`, all
+  41 harnesses green. Real layers do NOT enable kits yet (capability + forced-test first, the
+  build-alongside way). **Next: enable on real layers** = add `"kit"` to the Heap/Stack
+  profiles + update `layer_look_test` (it asserts the gray shell Floor mesh, which the kit
+  hides) so a real campaign run shows the kit + the Heap-vs-Stack recolour in every shape.
+  Later: a toon-shaded tint material; prop vignettes for cover (Pass D — `container*` reads
+  as crates better than `structure-barrier`); rigged Kenney characters on enemies (Pass E —
+  needs care vs the primitive-mesh death ragdoll); hand-built hero rooms (Pass F).
+- **Tools** — `tools/kit_preview.tscn` (Heap + Stack rect rooms) + `tools/kit_shapes_preview.tscn`
+  (real generated T + plus kit'd rooms), both NON-headless PNG renders for eyeballing;
+  `tools/kit_measure.tscn` (non-asserting) dumps each piece's AABB to recover a kit's module
+  grid. Covered by `tools/kit_room_test.tscn` (`KIT_ROOM_OK`).

@@ -150,6 +150,10 @@ var _active_floor_mat: StandardMaterial3D
 var _active_wall_mat: StandardMaterial3D
 var _active_struct_mat: StandardMaterial3D
 var _palette_cache: Dictionary = {}
+# Optional modular-kit skin (build-alongside): when a layer profile carries a "kit",
+# the gray shell is hidden and the kit's meshes are drawn over it, recoloured by the
+# layer palette. Visual only -- the collision boxes still drive the navmesh bake.
+var _room_kit: RoomKit = null
 # Scene environment, captured so per-layer fog/ambient can be applied + restored.
 var _environment: Environment
 var _base_ambient_energy := 1.0
@@ -240,6 +244,10 @@ func build_room(room: int, profile: Dictionary = {}) -> Dictionary:
 	_active_wall_mat = palette.wall
 	_active_struct_mat = palette.struct
 	_build_shell()
+	# Optional modular-kit re-skin: only when the layer profile opts in via "kit" (so
+	# ENDLESS and any un-kitted layer stay on the gray shell, byte-for-byte unchanged).
+	if profile.has("kit"):
+		_skin_shell(profile)
 	var ok := false
 	for attempt in MAX_BUILD_ATTEMPTS:
 		_clear_generated()
@@ -397,7 +405,11 @@ func _in_notch(xz: Vector2, margin: float) -> bool:
 ## shell container. StaticBody3D boxes (like the obstacles) so the navmesh bakes
 ## cleanly from collision shapes. Reproduces the authored geometry at half = 21.
 func _build_shell() -> void:
+	# Remove old shell boxes IMMEDIATELY (not deferred): the kit re-skin runs in this same
+	# frame, so a lingering queue_freed "Floor"/"Wall*" would steal the new box's name (and
+	# get mis-skinned). remove_child frees the name now; queue_free still deletes safely.
 	for child in _shell.get_children():
+		_shell.remove_child(child)
 		child.queue_free()
 	if _shape == "plus":
 		_build_plus_shell()
@@ -407,6 +419,54 @@ func _build_shell() -> void:
 		_build_box_shell()
 	else:
 		_build_l_shell()
+
+
+## Resolve the layer's modular kit (cached). Only "space_station" exists today; any
+## profile carrying a "kit" key uses it. Returns null when the profile opts out.
+func _resolve_kit(profile: Dictionary) -> RoomKit:
+	if not profile.has("kit"):
+		return null
+	if _room_kit == null:
+		_room_kit = RoomKit.space_station()
+	return _room_kit
+
+
+## Overlay the active kit's modular meshes on the shell, recoloured by the layer palette.
+## VISUAL ONLY: the shell's StaticBody collision stays (the navmesh bakes from colliders,
+## NavigationMesh.geometry_parsed_geometry_type = STATIC_COLLIDERS, so these meshes are
+## ignored by the bake); we just hide the gray box meshes and draw the kit over them.
+## Works for EVERY shape (rect / L / T / plus): each shell box carries its own size + pos,
+## so we tile floor boxes and run wall modules per box -- the bare notch corners have no
+## floor box, so they stay floorless. Kit nodes live under _shell (cleared by _build_shell).
+func _skin_shell(profile: Dictionary) -> void:
+	var kit := _resolve_kit(profile)
+	if kit == null:
+		return
+	var floor_tint: Color = profile.get("floor_color", Color.WHITE)
+	var wall_tint: Color = profile.get("wall_color", Color.WHITE)
+	for box in _shell.get_children():
+		if not (box is StaticBody3D):
+			continue
+		var pos: Vector3 = (box as Node3D).position
+		var size := _box_size(box)
+		for mi in (box as Node).get_children():
+			if mi is MeshInstance3D:
+				(mi as MeshInstance3D).visible = false  # hide gray, keep collision
+		var bn := String(box.name)
+		if bn.begins_with("Floor"):
+			kit.tile_floor(_shell, Vector2(size.x * 0.5, size.z * 0.5), pos.y + size.y * 0.5,
+					floor_tint, "Kit" + bn, Vector2(pos.x, pos.z))
+		elif bn.begins_with("Wall"):
+			kit.build_wall_box(_shell, pos, size, WALL_HEIGHT, wall_tint, "Kit" + bn)
+
+
+## Half-extent box size of a shell StaticBody, read from its CollisionShape (the source
+## of truth -- the navmesh bakes from this), falling back to 1 m if somehow absent.
+func _box_size(body: Node) -> Vector3:
+	for c in body.get_children():
+		if c is CollisionShape3D and (c as CollisionShape3D).shape is BoxShape3D:
+			return ((c as CollisionShape3D).shape as BoxShape3D).size
+	return Vector3.ONE
 
 
 ## Plain rectangular shell: one floor box + four walls sized to the footprint.

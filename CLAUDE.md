@@ -54,6 +54,14 @@ Headings in `context_systems.md`:
   (attach-effect `ShockField` zap) + selector wheel/highlight + RoomBuilder seeds props +
   progression (lobby Cores unlock adjectives, in-run cards rank them). Fully in the run
   economy. Coming: more adjectives. Plan: `hacking_plan.md`.
+- **Modular kit skin (Kenney space-station)** — real visuals over the procgen layout:
+  `RoomKit` skins the generated shell with the Kenney modular kit (floor/wall tiles via
+  MultiMesh, props instanced), recoloured per-layer by multiplying the shared colormap
+  atlas (Heap dim-green vs Stack steel-blue → major-transition variety). Visual-only over
+  the tested collision (navmesh bakes from colliders, untouched). Gated on profile `"kit"`.
+  Pass A + B + C done (`KIT_ROOM_OK`, generic skin over rect/L/T/plus, capability +
+  forced-test); next = enable on real Heap/Stack layers (+ update `layer_look_test`).
+  Assets in `Assets/kenney_*`.
 - **Developer tools** — DevTools autoload, debug-build cheats (F1 god / F2 kill all / F3 refill / F5-F6 room jump / F7 layer jump). Plus a **Sandbox** test map (main-menu **TEST MAP** → `scenes/ui/sandbox.tscn`): a kitted free-play arena (every hack adjective unlocked + both abilities granted, hackable cubes over dummies) for trying new mechanics outside the run flow.
 - **Current state** — running changelog of everything shipped so far.
 

@@ -1,0 +1,222 @@
+extends Resource
+class_name RoomKit
+## A "skin" for procedural rooms: maps the abstract shell (floor rectangles + wall
+## lines) onto a Kenney modular building kit. Floor + wall pieces are single-mesh 1 m
+## modules, so they tile via MultiMeshInstance3D (thousands of modules per room, one
+## draw batch each); higher-detail props are low-count and instance their scene directly.
+##
+## BUILD-ALONGSIDE: a kit only adds *visual*, non-colliding meshes layered over the
+## existing tested collision boxes -- it never touches collision, navmesh, spawns or any
+## gameplay geometry. The shell's StaticBody boxes still own physics; the kit just makes
+## the room look like a place instead of gray primitives.
+##
+## The defaults describe the Kenney space-station kit (measured 1 m grid: floor 1x1x0.3,
+## wall 1 wide x 1 tall x 0.3 thick). Per-layer kits become authored .tres later.
+
+@export var kit_dir: String = "res://Assets/kenney_space-station-kit/Models/GLB format/"
+@export var floor_piece: String = "floor"
+@export var wall_piece: String = "wall"
+@export var module: float = 1.0  # grid unit (this kit is 1 m)
+## The kit's shared palette atlas: every piece UVs into this one texture. Per-layer
+## recolouring multiplies it by a tint (albedo_color x texture), so the Heap reads
+## dim green and the Stack steel-blue while the kit keeps its internal shading detail.
+@export var colormap: String = "res://Assets/kenney_space-station-kit/Models/GLB format/Textures/colormap.png"
+
+# Cache of {piece_name: {mesh, size}} so each GLB is loaded/measured once per kit.
+var _mesh_cache: Dictionary = {}
+# Cache of {tint_html: StandardMaterial3D} so each layer tint is built once.
+var _tint_cache: Dictionary = {}
+
+
+## A ready-to-use space-station kit (defaults already describe it).
+static func space_station() -> RoomKit:
+	return RoomKit.new()
+
+
+# ------------------------------------------------------------------ public tiling
+
+## Tile floor modules across the rect [-half..half] (XZ), with the tile TOP at `top_y`
+## (so it sits flush on the shell's collision floor, whose top is y = 0). Returns the
+## MultiMeshInstance3D added under `parent`.
+func tile_floor(parent: Node3D, half: Vector2, top_y: float, tint := Color.WHITE,
+		tile_name := "KitFloor", center := Vector2.ZERO) -> MultiMeshInstance3D:
+	var info := _piece(floor_piece)
+	if info.mesh == null:
+		return null
+	var tile: float = info.size.x
+	var thick: float = info.size.y
+	var nx: int = maxi(1, int(round(half.x * 2.0 / tile)))
+	var nz: int = maxi(1, int(round(half.y * 2.0 / tile)))
+	var step_x := half.x * 2.0 / nx
+	var step_z := half.y * 2.0 / nz
+	var y := top_y - thick  # mesh base is at local y=0, top at `thick`; drop so top hits top_y
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.mesh = info.mesh
+	mm.instance_count = nx * nz
+	var i := 0
+	for ix in nx:
+		for iz in nz:
+			var px := center.x - half.x + (ix + 0.5) * step_x
+			var pz := center.y - half.y + (iz + 0.5) * step_z
+			var b := Basis.IDENTITY.scaled(Vector3(step_x / tile, 1.0, step_z / tile))
+			mm.set_instance_transform(i, Transform3D(b, Vector3(px, y, pz)))
+			i += 1
+	return _attach_mm(parent, mm, tile_name, tint)
+
+
+## Build a vertical wall of modules along the XZ segment a->b (the wall's INNER-face
+## line), `height` tall, its detailed face turned toward `inward`. The kit wall module
+## is thinner than the shell's collision box, so we sit its inner face on the line and
+## let the (thicker) collision box stay behind it.
+func build_wall_run(parent: Node3D, a: Vector2, b: Vector2, height: float,
+		inward: Vector2, tint := Color.WHITE, run_name := "KitWall") -> MultiMeshInstance3D:
+	var info := _piece(wall_piece)
+	if info.mesh == null:
+		return null
+	var seg := b - a
+	var length := seg.length()
+	if length < 0.01:
+		return null
+	var dir := seg / length
+	var face := Vector2(-dir.y, dir.x)  # = dir x UP, the module's local +Z (detailed) face
+	var start := a
+	if face.dot(inward) < 0.0:           # traverse so the detailed face turns inward
+		dir = -dir
+		start = b
+		face = -face
+	var mod_w: float = info.size.x
+	var thick: float = info.size.z
+	var course_h: float = info.size.y
+	var n: int = maxi(1, int(round(length / mod_w)))
+	var step := length / n
+	var courses: int = maxi(1, int(ceil(height / course_h)))
+	var dir3 := Vector3(dir.x, 0.0, dir.y)
+	var face3 := Vector3(face.x, 0.0, face.y)
+	var start3 := Vector3(start.x, 0.0, start.y)
+	var basis := Basis(dir3 * (step / mod_w), Vector3.UP, face3)
+	var back := -face3 * (thick * 0.5)  # push module center back so its inner face hits the line
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.mesh = info.mesh
+	mm.instance_count = n * courses
+	var i := 0
+	for k in n:
+		var along := start3 + dir3 * ((k + 0.5) * step)
+		for j in courses:
+			var origin := along + back + Vector3(0.0, j * course_h, 0.0)
+			mm.set_instance_transform(i, Transform3D(basis, origin))
+			i += 1
+	return _attach_mm(parent, mm, run_name, tint)
+
+
+## Tint an instanced prop (or any node subtree) with the layer colour: applies the
+## colormap-x-tint material_override to every MeshInstance3D under `node`. Used for the
+## low-count props that instance their scene directly (not MultiMesh).
+func tint_node(node: Node, tint: Color) -> void:
+	if node is MeshInstance3D and (node as MeshInstance3D).mesh != null:
+		(node as MeshInstance3D).material_override = _tint_material(tint)
+	for c in node.get_children():
+		tint_node(c, tint)
+
+
+## Skin one shell WALL box (a StaticBody box of size `size` centred at `pos`) with kit
+## wall modules. The thin horizontal axis is the wall's thickness; the long axis is its
+## run; the detailed face turns toward the room (origin) -- which also points toward the
+## floor for the concave notch walls, since each sits between a bare corner (outer) and
+## floor (inner). Generic, so it skins rect / L / T / plus walls uniformly.
+func build_wall_box(parent: Node3D, pos: Vector3, size: Vector3, height: float,
+		tint := Color.WHITE, run_name := "KitWall") -> MultiMeshInstance3D:
+	var center2 := Vector2(pos.x, pos.z)
+	var length_dir: Vector2
+	var inward: Vector2
+	var half_len: float
+	var half_thick: float
+	if size.x <= size.z:                 # thin in X -> runs along Z, faces +/- X
+		half_thick = size.x * 0.5
+		half_len = size.z * 0.5
+		length_dir = Vector2(0.0, 1.0)
+		var sx := signf(pos.x)
+		inward = Vector2(-sx if sx != 0.0 else -1.0, 0.0)  # toward origin on X
+	else:                                # thin in Z -> runs along X, faces +/- Z
+		half_thick = size.z * 0.5
+		half_len = size.x * 0.5
+		length_dir = Vector2(1.0, 0.0)
+		var sz := signf(pos.z)
+		inward = Vector2(0.0, -sz if sz != 0.0 else -1.0)  # toward origin on Z
+	var inner_center := center2 + inward * half_thick  # the wall's inner-face line
+	var a := inner_center - length_dir * half_len
+	var b := inner_center + length_dir * half_len
+	return build_wall_run(parent, a, b, height, inward, tint, run_name)
+
+
+## Convenience: skin a plain rectangular shell (floor + four walls) under `parent`,
+## floor + walls tinted independently (per-layer palette gives major-transition variety).
+func skin_box(parent: Node3D, half: Vector2, height: float,
+		floor_tint := Color.WHITE, wall_tint := Color.WHITE) -> void:
+	var hx := half.x
+	var hz := half.y
+	tile_floor(parent, half, 0.0, floor_tint)
+	# z- is north (the exit-gate edge); room centre is at the origin. Names are "Kit*"
+	# so they never clash with the gray shell's StaticBody boxes (WallN/WallS/...).
+	build_wall_run(parent, Vector2(-hx, -hz), Vector2(hx, -hz), height, Vector2(0.0, 1.0), wall_tint, "KitWallN")
+	build_wall_run(parent, Vector2(-hx, hz), Vector2(hx, hz), height, Vector2(0.0, -1.0), wall_tint, "KitWallS")
+	build_wall_run(parent, Vector2(hx, -hz), Vector2(hx, hz), height, Vector2(-1.0, 0.0), wall_tint, "KitWallE")
+	build_wall_run(parent, Vector2(-hx, -hz), Vector2(-hx, hz), height, Vector2(1.0, 0.0), wall_tint, "KitWallW")
+
+
+# ------------------------------------------------------------------ internals
+
+func _attach_mm(parent: Node3D, mm: MultiMesh, mm_name: String, tint: Color) -> MultiMeshInstance3D:
+	var mmi := MultiMeshInstance3D.new()
+	mmi.name = mm_name
+	mmi.multimesh = mm
+	mmi.material_override = _tint_material(tint)
+	parent.add_child(mmi)
+	return mmi
+
+
+## A material that draws the kit's colormap atlas multiplied by `tint` (so a single
+## per-layer colour recolours every piece while preserving its baked palette detail).
+## Cached per colour. Nearest filtering keeps the atlas swatches crisp at UV seams.
+func _tint_material(tint: Color) -> StandardMaterial3D:
+	var key := tint.to_html(true)
+	if _tint_cache.has(key):
+		return _tint_cache[key]
+	var mat := StandardMaterial3D.new()
+	var tex := load(colormap) as Texture2D
+	if tex != null:
+		mat.albedo_texture = tex
+	mat.albedo_color = tint
+	mat.metallic = 0.0
+	mat.roughness = 1.0
+	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	_tint_cache[key] = mat
+	return mat
+
+
+## The first mesh + its AABB size for a named kit piece (cached). {mesh, size}.
+func _piece(piece_name: String) -> Dictionary:
+	if _mesh_cache.has(piece_name):
+		return _mesh_cache[piece_name]
+	var out := {"mesh": null, "size": Vector3.ONE}
+	var packed := load(kit_dir + piece_name + ".glb") as PackedScene
+	if packed != null:
+		var inst := packed.instantiate()
+		var mi := _first_mesh(inst)
+		if mi != null:
+			out.mesh = mi.mesh
+			out.size = (mi.mesh as Mesh).get_aabb().size
+		inst.free()
+	_mesh_cache[piece_name] = out
+	return out
+
+
+func _first_mesh(node: Node) -> MeshInstance3D:
+	if node is MeshInstance3D and (node as MeshInstance3D).mesh != null:
+		return node
+	for c in node.get_children():
+		var found := _first_mesh(c)
+		if found != null:
+			return found
+	return null

@@ -1,3 +1,6 @@
 # Godot 4+ specific ignores
 .godot/
 /android/
+
+# Throwaway tool run logs (Start-Process stdout/stderr redirects)
+tools/_*.txt
