@@ -21,9 +21,16 @@ class_name RoomKit
 ## recolouring multiplies it by a tint (albedo_color x texture), so the Heap reads
 ## dim green and the Stack steel-blue while the kit keeps its internal shading detail.
 @export var colormap: String = "res://Assets/kenney_space-station-kit/Models/GLB format/Textures/colormap.png"
+## Cover/obstacle props (full paths, shared across kits -- a container reads as a crate in
+## any layer). Instanced (not MultiMesh) since they're low-count + multi-mesh, and tinted to
+## the layer while KEEPING their own colormap (so their UVs sample the right atlas).
+@export var crate_prop: String = "res://Assets/kenney_space-station-kit/Models/GLB format/container.glb"
+@export var pillar_prop: String = "res://Assets/kenney_space-station-kit/Models/GLB format/container-tall.glb"
 
-# Cache of {piece_name: {mesh, size}} so each GLB is loaded/measured once per kit.
+# Cache of {piece_name: {mesh, size, aabb}} so each GLB is loaded/measured once per kit.
 var _mesh_cache: Dictionary = {}
+# Cache of {prop_path: {scene, size}} for instanced props.
+var _prop_cache: Dictionary = {}
 # Cache of {tint_html: StandardMaterial3D} so each layer tint is built once.
 var _tint_cache: Dictionary = {}
 
@@ -128,14 +135,45 @@ func build_wall_run(parent: Node3D, a: Vector2, b: Vector2, height: float,
 	return _attach_mm(parent, mm, run_name, tint)
 
 
-## Tint an instanced prop (or any node subtree) with the layer colour: applies the
-## colormap-x-tint material_override to every MeshInstance3D under `node`. Used for the
-## low-count props that instance their scene directly (not MultiMesh).
+## Tint an instanced prop (or any node subtree) with the layer colour: for every
+## MeshInstance3D under `node`, multiply its OWN albedo texture by `tint` (keeping the prop's
+## own colormap so its UVs stay correct -- a space-station prop must not sample a different
+## kit's atlas). Falls back to the kit colormap if a mesh has no texture.
 func tint_node(node: Node, tint: Color) -> void:
 	if node is MeshInstance3D and (node as MeshInstance3D).mesh != null:
-		(node as MeshInstance3D).material_override = _tint_material(tint)
+		(node as MeshInstance3D).material_override = _prop_tint_material(node as MeshInstance3D, tint)
 	for c in node.get_children():
 		tint_node(c, tint)
+
+
+const OBSTACLE_CELL := 1.3  # target prop cell size (m); cells stay near-cubic so crates don't distort
+
+## Fill an obstacle box with a small CLUSTER of tinted kit props (a pile of crates / a stack of
+## tech blocks), rather than one stretched prop -- tiling near-cubic cells keeps each prop's
+## scaling near-uniform, so they read as real cargo instead of a distorted box. The box is
+## centred at the body origin resting on the floor; each prop's base sits on its cell bottom.
+## The caller hides the gray box mesh + keeps its collision.
+func skin_obstacle(parent: Node3D, size: Vector3, kind: String, tint: Color) -> void:
+	var info := _prop(crate_prop if kind == "crate" else pillar_prop)
+	if info.scene == null:
+		return
+	var nat: Vector3 = info.size
+	var nx: int = maxi(1, int(round(size.x / OBSTACLE_CELL)))
+	var ny: int = maxi(1, int(round(size.y / OBSTACLE_CELL)))
+	var nz: int = maxi(1, int(round(size.z / OBSTACLE_CELL)))
+	var cell := Vector3(size.x / nx, size.y / ny, size.z / nz)
+	var scl := Vector3(cell.x / maxf(nat.x, 0.01), cell.y / maxf(nat.y, 0.01), cell.z / maxf(nat.z, 0.01))
+	for ix in nx:
+		for iy in ny:
+			for iz in nz:
+				var inst := (info.scene as PackedScene).instantiate() as Node3D
+				parent.add_child(inst)
+				inst.scale = scl
+				inst.position = Vector3(
+						-size.x * 0.5 + (ix + 0.5) * cell.x,
+						-size.y * 0.5 + iy * cell.y,  # each prop's base on its cell bottom
+						-size.z * 0.5 + (iz + 0.5) * cell.z)
+				tint_node(inst, tint)
 
 
 ## Skin one shell WALL box (a StaticBody box of size `size` centred at `pos`) with kit
@@ -240,3 +278,76 @@ func _first_mesh(node: Node) -> MeshInstance3D:
 		if found != null:
 			return found
 	return null
+
+
+## A prop scene + its natural AABB size (cached). {scene, size}.
+func _prop(path: String) -> Dictionary:
+	if _prop_cache.has(path):
+		return _prop_cache[path]
+	var out := {"scene": null, "size": Vector3.ONE}
+	var packed := load(path) as PackedScene
+	if packed != null:
+		out.scene = packed
+		var inst := packed.instantiate()
+		var ab := _subtree_aabb(inst, inst)
+		if ab.size != Vector3.ZERO:
+			out.size = ab.size
+		inst.free()
+	_prop_cache[path] = out
+	return out
+
+
+## Merged AABB of every MeshInstance3D under `node`, in `root`'s local space.
+func _subtree_aabb(node: Node, root: Node) -> AABB:
+	var out := AABB()
+	var first := true
+	for mi in _all_meshes(node):
+		var ab: AABB = _rel_xform(root, mi) * (mi.mesh as Mesh).get_aabb()
+		if first:
+			out = ab
+			first = false
+		else:
+			out = out.merge(ab)
+	return out
+
+
+func _all_meshes(node: Node) -> Array:
+	var found: Array = []
+	if node is MeshInstance3D and (node as MeshInstance3D).mesh != null:
+		found.append(node)
+	for c in node.get_children():
+		found.append_array(_all_meshes(c))
+	return found
+
+
+## Transform of `mi` relative to `root` (product of transforms along the path, root included),
+## matching the layout a fresh instance gets when added to the tree at identity.
+func _rel_xform(root: Node, mi: Node3D) -> Transform3D:
+	var xf := Transform3D.IDENTITY
+	var n: Node = mi
+	while n != null:
+		if n is Node3D:
+			xf = (n as Node3D).transform * xf
+		if n == root:
+			break
+		n = n.get_parent()
+	return xf
+
+
+## A tint material that keeps the mesh's OWN albedo texture (so the prop's UVs sample its own
+## atlas), multiplied by `tint`. Falls back to the kit colormap if the mesh has no texture.
+func _prop_tint_material(mesh: MeshInstance3D, tint: Color) -> StandardMaterial3D:
+	var mat := StandardMaterial3D.new()
+	var src := mesh.get_active_material(0)
+	var tex: Texture2D = null
+	if src is BaseMaterial3D:
+		tex = (src as BaseMaterial3D).albedo_texture
+	if tex == null:
+		tex = load(colormap) as Texture2D
+	if tex != null:
+		mat.albedo_texture = tex
+	mat.albedo_color = tint
+	mat.metallic = 0.0
+	mat.roughness = 1.0
+	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	return mat

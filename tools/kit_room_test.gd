@@ -114,6 +114,24 @@ func _part_scene() -> void:
 				"gray shell Floor mesh is still visible under the kit (z-fight)")
 		_check(_has_collision_shape(gray_floor), "shell Floor lost its CollisionShape3D")
 
+	# Pass D: cover boxes are skinned with kit props -- gray box mesh hidden, a prop (with
+	# its own nested meshes) added, the collision box kept. scattered_cover = all crates.
+	var room_node: Node = main.get_node_or_null("NavRegion/GeneratedRoom")
+	_check(room_node != null, "no GeneratedRoom for the cover boxes")
+	var skinned := 0
+	var total_boxes := 0
+	if room_node != null:
+		for body in room_node.get_children():
+			if body is StaticBody3D:
+				total_boxes += 1
+				var gray := _first_child_mesh(body)
+				if gray != null and not gray.visible and _has_prop_meshes(body) \
+						and _has_collision_shape(body):
+					skinned += 1
+	_check(total_boxes >= 1, "scattered_cover placed no cover boxes")
+	_check(skinned == total_boxes and skinned >= 1,
+			"cover boxes not all skinned with kit props (%d/%d)" % [skinned, total_boxes])
+
 	# --- Pass C: a kit'd NOTCHED room (T-shape) is skinned per shell box -------------
 	# (CSG arena was already retired by the rect build above, so the notch is a real hole.)
 	var rb: GDScript = load("res://scripts/run/room_builder.gd")
@@ -181,5 +199,25 @@ func _first_child_mesh(node: Node) -> MeshInstance3D:
 func _has_collision_shape(node: Node) -> bool:
 	for c in node.get_children():
 		if c is CollisionShape3D:
+			return true
+	return false
+
+
+## True if `body` has a prop child (a non-direct-mesh subtree containing MeshInstance3Ds) --
+## i.e. a kit prop was instanced over the gray box.
+func _has_prop_meshes(body: Node) -> bool:
+	for child in body.get_children():
+		if child is MeshInstance3D or child is CollisionShape3D:
+			continue
+		if _find_mesh_deep(child):
+			return true
+	return false
+
+
+func _find_mesh_deep(node: Node) -> bool:
+	if node is MeshInstance3D and (node as MeshInstance3D).mesh != null:
+		return true
+	for c in node.get_children():
+		if _find_mesh_deep(c):
 			return true
 	return false

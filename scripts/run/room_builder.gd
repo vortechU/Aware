@@ -155,6 +155,9 @@ var _palette_cache: Dictionary = {}
 # layer palette. Visual only -- the collision boxes still drive the navmesh bake.
 # Cached per kit id (each layer can use a different pack -- Heap space-station, Stack modular).
 var _kits: Dictionary = {}
+# The kit for the room currently building (null = no skin), + the tint its props take.
+var _active_kit: RoomKit = null
+var _active_obstacle_tint: Color = Color.WHITE
 # Scene environment, captured so per-layer fog/ambient can be applied + restored.
 var _environment: Environment
 var _base_ambient_energy := 1.0
@@ -244,10 +247,13 @@ func build_room(room: int, profile: Dictionary = {}) -> Dictionary:
 	_active_floor_mat = palette.floor
 	_active_wall_mat = palette.wall
 	_active_struct_mat = palette.struct
+	# Resolve the layer's kit once (null = no skin). Obstacle props take the struct colour.
+	_active_kit = _resolve_kit(profile)
+	_active_obstacle_tint = profile.get("struct_color", Color.WHITE)
 	_build_shell()
 	# Optional modular-kit re-skin: only when the layer profile opts in via "kit" (so
 	# ENDLESS and any un-kitted layer stay on the gray shell, byte-for-byte unchanged).
-	if profile.has("kit"):
+	if _active_kit != null:
 		_skin_shell(profile)
 	var ok := false
 	for attempt in MAX_BUILD_ATTEMPTS:
@@ -1127,6 +1133,12 @@ func _instantiate_boxes(boxes: Array[Dictionary], ghost := false) -> void:
 			mesh_instance.material_override = \
 					_crate_material if desc.kind == "crate" else _active_struct_mat
 		body.add_child(mesh_instance)
+		# Kit skin: hide the gray box mesh (keep its collision + RVO) and drop a tinted kit
+		# prop fitted to the box. Visual-only, like the shell skin. Ghost rooms keep their
+		# spectral material (they're corrupted echoes, not furnished spaces).
+		if _active_kit != null and not ghost:
+			mesh_instance.visible = false
+			_active_kit.skin_obstacle(body, desc.size, desc.kind, _active_obstacle_tint)
 		if desc.kind == "crate":
 			# Mirror the authored crates: low cover gets an RVO obstacle.
 			var rvo := NavigationObstacle3D.new()

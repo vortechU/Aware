@@ -498,7 +498,9 @@ scripts. On Windows the Godot exe detaches from the console, so use
     `Floor` mesh hidden while its `StaticBody`+`CollisionShape3D` survive; a forced kit'd
     T-shape gets `KitFloor`+`KitFloor2` + ≥2 `KitWallNotch*` overlays with NO kit floor tile
     in its bare NE corner; an ENDLESS build (no `"kit"`) stays on the plain gray shell (the
-    gate). GATING: `build_room` only skins when `profile.has("kit")`, so ENDLESS + every
+    gate). Pass D: every cover box is skinned -- `RoomKit.skin_obstacle` fills it with a tinted
+    prop CLUSTER (gray box mesh hidden, props added, collision + RVO kept).
+    GATING: `build_room` only skins when `profile.has("kit")`, so ENDLESS + every
     un-kitted layer is byte-for-byte unchanged. LIVE ON REAL LAYERS: the Heap profile carries
     `"kit":"space_station"` (fine 1 m grid) and the Stack `"kit":"modular_space"` (the chunky
     4 m Kenney modular-space kit -- full-height single-piece walls + flat 4 m floor planes), so

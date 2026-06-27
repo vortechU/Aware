@@ -949,17 +949,27 @@ meshes are invisible to the bake. Assets live under `Assets/kenney_space-station
   nearest whole wall courses then scales Y to fill `WALL_HEIGHT` exactly, and aligns the wall's
   inner face by the mesh's local +Z extent (handles centred vs face-origin meshes).
   `RoomBuilder._resolve_kit` maps the profile's `"kit"` id to the pack (cached per id).
+- **Cover props (Pass D)** — `RoomKit.skin_obstacle` fills each cover/obstacle box with a small
+  CLUSTER of tinted kit props instead of the gray box (gray mesh hidden, collision + RVO kept;
+  visual-only, like the shell skin). Clustering near-cubic cells keeps each prop's scaling
+  near-uniform so they read as real cargo, not a stretched box. Wired in `_instantiate_boxes`
+  (gated on the active kit, skipped for ghost rooms). Props are shared across kits (full paths,
+  tinted while KEEPING their own colormap via `tint_node`/`_prop_tint_material` -- a
+  space-station prop must not sample another kit's atlas). PROP NOTE: the `container*` pieces
+  are barrels/drums (good industrial cover); `structure` is an open FRAME/table (bad as solid
+  cover -- avoid). crate kind -> `container`, struct/pillar -> `container-tall`. Eyeball props
+  via `tools/kit_props_preview.tscn` (gallery).
 - **Status** — Pass A (RoomKit + recolour) + B (rect skin) + C (generic over all shapes) +
-  LIVE ON REAL LAYERS shipped; `KIT_ROOM_OK`, all 41 harnesses green. The Heap uses the
-  space-station kit, the Stack the modular-space kit (`"kit"` keys in LayerCatalog), so
-  descending Heap->Stack swaps the WHOLE pack -- the strongest major-transition read. Both
-  Kenney packs are in use, as Vor wanted. (Eyeball via `tools/layer_look_preview.tscn` = real
-  kitted Heap + Stack.) TUNING NOTE: the Heap's authored `fog_density` 0.020 is thick enough
-  to obscure much of the new kit detail -- drop toward ~0.012-0.015 if the kit should breathe.
-  Later: a toon-shaded tint material; prop vignettes for cover (Pass D — `container*` reads
-  as crates better than `structure-barrier`); rigged Kenney characters on enemies (Pass E —
-  needs care vs the primitive-mesh death ragdoll); hand-built hero rooms (Pass F); deeper
-  layers (Cache/Kernel/I-O) can remix the two packs (or add a third).
+  LIVE ON REAL LAYERS + Pass D (cover props) shipped; `KIT_ROOM_OK`, all 41 harnesses green.
+  The Heap uses the space-station kit, the Stack the modular-space kit (`"kit"` keys in
+  LayerCatalog), so descending Heap->Stack swaps the WHOLE pack -- the strongest major-
+  transition read. Both Kenney packs in use, as Vor wanted. (Eyeball via
+  `tools/layer_look_preview.tscn` = real kitted + furnished Heap + Stack.) TUNING NOTE: the
+  Heap's authored `fog_density` 0.020 is thick enough to obscure much of the kit detail -- drop
+  toward ~0.012-0.015 if the kit should breathe. Later: a toon-shaded tint material; prop
+  VARIETY (mix more prop types per box, not just barrels) + hackable-cube skin; rigged Kenney
+  characters on enemies (Pass E — needs care vs the primitive-mesh death ragdoll); hand-built
+  hero rooms (Pass F); deeper layers (Cache/Kernel/I-O) can remix the two packs (or add a third).
 - **Tools** — `tools/kit_preview.tscn` (Heap + Stack rect rooms) + `tools/kit_shapes_preview.tscn`
   (real generated T + plus kit'd rooms), both NON-headless PNG renders for eyeballing;
   `tools/kit_measure.tscn` (non-asserting) dumps each piece's AABB to recover a kit's module
