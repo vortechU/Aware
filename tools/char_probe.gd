@@ -71,6 +71,9 @@ func _walk(n: Node, depth: int) -> void:
 	elif n is AnimationPlayer:
 		var ap := n as AnimationPlayer
 		extra = " [ANIMPLAYER libs=%s anims=%s]" % [ap.get_animation_library_list(), ap.get_animation_list()]
+	if n is Node3D:
+		var t := (n as Node3D).transform
+		extra += " {scale=%s}" % t.basis.get_scale()
 	_log("  %s%s (%s)%s" % [pad, n.name, n.get_class(), extra])
 	for c in n.get_children():
 		_walk(c, depth + 1)
@@ -120,6 +123,13 @@ func _measure_in_tree(path: String) -> void:
 		ymin = minf(ymin, o.y)
 		ymax = maxf(ymax, o.y)
 	_log("  DEFORM bone Y span: %.4f .. %.4f  (height=%.4f units)" % [ymin, ymax, ymax - ymin])
+	_log("  --- ALL BONES (idx: name  parent=idx) ---")
+	for i in sk.get_bone_count():
+		var nm := sk.get_bone_name(i)
+		var low := nm.to_lower()
+		if "ctrl" in low or "roll" in low or "_end" in low or "ik" in low or "pole" in low:
+			continue
+		_log("    %d: %s  parent=%d" % [i, nm, sk.get_bone_parent(i)])
 	# Named landmarks.
 	for nm in ["Hips", "Head", "Head_end", "RightHand", "RightFoot"]:
 		var bi := sk.find_bone(nm)

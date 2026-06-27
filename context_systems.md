@@ -1017,11 +1017,24 @@ untouched. Assets: `Assets/kenney_animated-characters-protagonists/` (and `-surv
   and tracks the hand through the run cycle. Crucially it is NOT reparented under a
   `BoneAttachment3D` — the gun stays a child of `Visual`, so `enemy_ai._drop_gun` still finds
   `Visual/Gun` and the death gun-drop is unchanged (the ragdoll harnesses stay green).
-- **Death = existing ragdoll, for free** — `enemy_ai._spawn_ragdoll` reparents the WHOLE `Visual`
-  (rig included) onto the `enemy_corpse` RigidBody3D and tumbles + shrinks it. Because the rig
-  rides inside `Visual`, the character becomes the corpse automatically (a frozen-pose stiff
-  ragdoll, anim paused by EnemyRig). The fancy head-pop is an invisible no-op (acceptable; the
-  visible gun-drop is preserved). All ragdoll harnesses stay green with rigs live.
+- **Death = crumple over the existing tumble** — `enemy_ai._spawn_ragdoll` reparents the WHOLE
+  `Visual` (rig included) onto the `enemy_corpse` RigidBody3D and tumbles + shrinks it. EnemyRig
+  pauses the anim and runs a **crumple** on `enemy_died`: it blends key bones (spine/neck/head
+  curl forward, knees buckle, arms drop) from the frozen pose into a limp collapsed pose over
+  `CRUMPLE_TIME` (`set_bone_pose_rotation` slerp, `SLUMP` euler table tuned via the preview), so
+  the body goes slack and falls instead of toppling as a stiff statue. Pose-only, so it's immune
+  to the scale issue below. The head-pop is an invisible no-op; the visible gun-drop is preserved.
+  All ragdoll harnesses stay green with rigs live.
+- **TRUE physics ragdoll is BLOCKED (asset scale)** — a real per-limb `PhysicalBone3D` ragdoll was
+  attempted (procedurally AND via the editor's "Create Physical Skeleton", parked at
+  `scenes/enemies/character_ragdoll.tscn`). Both EXPLODE because the Kenney FBX imports with its
+  `Root` node scaled **100x**: the skeleton + every generated physical-bone capsule live in 1/100
+  space (sub-millimetre shapes), far below what Jolt can simulate stably. Confirmed with a minimal
+  drop test of the editor ragdoll (zero of our code) -- it still explodes, so it's the asset, not
+  the ragdoll logic. Fixing it means correcting the 100x import scale across the model + the 3
+  anim FBXs and regenerating the physical skeleton (a real pipeline task, deferred). The crumple
+  is the reliable stand-in; the parked `character_ragdoll.tscn` is kept for a future scale-fixed
+  attempt.
 - **Archetype colour** — `_archetype_tint` reads the Body mesh's active albedo via `_albedo_of`
   (a toon ShaderMaterial `albedo` uniform OR a StandardMaterial3D `albedo_color`, so it's
   order-independent vs ToonApplicator) and, if it differs from the plain-enemy crimson
@@ -1034,10 +1047,11 @@ untouched. Assets: `Assets/kenney_animated-characters-protagonists/` (and `-surv
   capsule feet). Material is a `StandardMaterial3D` (skin texture × tint, nearest-filtered, matte)
   — NOT the inverted-hull toon outline, whose local-space width would balloon under the rig's
   scale. This matches the kitted world (which is also StandardMaterial3D), so the characters fit.
-- **Status** — Pass E + weapon-in-hand shipped; `CHARACTER_OK` = harness #42, all 42 green.
-  Always-on for every enemy in every mode (endless + campaign + sandbox). Next/later: skin
-  VARIETY (per-archetype / per-layer / per-pack skins, survivors+protagonists for "corrupted"
-  enemies); a proper death pose or physical ragdoll; optionally a toon-shaded character material.
+- **Status** — Pass E + weapon-in-hand + death crumple shipped; `CHARACTER_OK` = harness #42, all
+  42 green. Always-on for every enemy in every mode (endless + campaign + sandbox). Next/later:
+  skin VARIETY (per-archetype / per-layer / per-pack skins, survivors+protagonists for "corrupted"
+  enemies); true physics ragdoll IF the FBX 100x import scale is fixed; optionally a toon-shaded
+  character material.
 - **Tools** — `tools/character_preview.tscn` (NON-headless) renders plain + tinted enemies next
   to a height reference and PRINTS the measured `RIG_SCALE`; `tools/char_probe.tscn`
   (non-asserting) dumps the imported FBX tree / bone names / anim clips. Covered by

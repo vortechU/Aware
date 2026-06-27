@@ -21,6 +21,27 @@ const BLEND := 0.15      # crossfade time between locomotion clips
 # local frame (so it reads aim-aligned, forward = -Z). Tuned via the preview.
 const GUN_OFFSET := Vector3(0.04, -0.02, -0.16)
 
+# Death "crumple": on death we blend key bones from the frozen pose toward a limp,
+# collapsed pose while the existing corpse tumble carries the body -- a believable
+# "goes slack and falls" without physics bodies (true ragdoll is blocked by the
+# FBX's 1/100 import scale, which makes physics shapes sub-millimetre). Each entry
+# is a bone-local euler offset (degrees), tuned via tools/char_ragdoll_preview.tscn.
+const CRUMPLE_TIME := 0.5
+const SLUMP := {
+	"Spine": Vector3(35, 0, 0),
+	"Chest": Vector3(22, 0, 0),
+	"Neck": Vector3(35, 0, 0),
+	"Head": Vector3(25, 0, 0),
+	"LeftUpLeg": Vector3(55, 0, 8),
+	"RightUpLeg": Vector3(55, 0, -8),
+	"LeftLeg": Vector3(-65, 0, 0),
+	"RightLeg": Vector3(-65, 0, 0),
+	"LeftArm": Vector3(15, 0, 35),
+	"RightArm": Vector3(15, 0, -35),
+	"LeftForeArm": Vector3(45, 0, 0),
+	"RightForeArm": Vector3(45, 0, 0),
+}
+
 var _anim: AnimationPlayer
 var _enemy: Node3D       # the EnemyAI (CharacterBody3D); set at setup, valid as the husk
 var _gun: Node3D         # the primitive Visual/Gun, KEPT for the gun-drop ragdoll
@@ -69,7 +90,35 @@ func _drive_gun() -> void:
 	_gun.global_transform = Transform3D(aim, hand.origin + aim * GUN_OFFSET)
 
 
+# Per bone: [bone_idx, base_rotation, slumped_rotation]; lerped by the crumple tween.
+var _slump: Array = []
+
+
+## On death, freeze the animation and blend the skeleton from its current pose into
+## a limp/collapsed pose over CRUMPLE_TIME, so the existing corpse tumble carries a
+## body that goes slack rather than a stiff statue. Pose-rotation only (no physics)
+## -- robust against the FBX's 1/100 scale. The tween rides the skeleton, which the
+## ragdoll reparents onto the corpse, so it survives until the corpse frees itself.
 func _on_enemy_died(_e: Variant = null) -> void:
 	_dead = true
 	if _anim != null:
-		_anim.pause()  # freeze the current pose; the corpse rigidbody does the tumbling
+		_anim.pause()
+	if _skel == null:
+		return
+	_slump.clear()
+	for bone_name in SLUMP:
+		var bi: int = _skel.find_bone(bone_name)
+		if bi < 0:
+			continue
+		var base_q := _skel.get_bone_pose_rotation(bi)
+		var off := Quaternion(Basis.from_euler((SLUMP[bone_name] as Vector3) * (PI / 180.0)))
+		_slump.append([bi, base_q, base_q * off])
+	var t := _skel.create_tween()
+	t.tween_method(_apply_slump, 0.0, 1.0, CRUMPLE_TIME).set_ease(Tween.EASE_OUT)
+
+
+func _apply_slump(amount: float) -> void:
+	if not is_instance_valid(_skel):
+		return
+	for e in _slump:
+		_skel.set_bone_pose_rotation(e[0], (e[1] as Quaternion).slerp(e[2] as Quaternion, amount))

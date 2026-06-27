@@ -533,9 +533,15 @@ scripts. On Windows the Godot exe detaches from the console, so use
     the hidden `Head` stays as the headshot head-pop's (now invisible) donor. EnemyRig glues that
     kept gun to the rig's `RightHand` bone each frame (`_drive_gun`, NOT a reparent — so the gun
     stays `Visual/Gun` and `_drop_gun` is unaffected), seating it in the hand vs floating. EnemyRig reads the
-    owning enemy's `velocity` from the OUTSIDE to switch idle<->run, and pauses its anim on the
-    enemy's `enemy_died` signal so the existing ragdoll (which reparents the whole `Visual`, rig
-    included, onto a corpse) tumbles a frozen-pose character. Archetype colour: `_archetype_tint`
+    owning enemy's `velocity` from the OUTSIDE to switch idle<->run. On `enemy_died` it pauses the
+    anim and runs a **crumple**: it blends key bones (spine/neck/head curl, knees buckle, arms
+    drop) from the frozen pose into a limp collapsed pose over `CRUMPLE_TIME` via
+    `set_bone_pose_rotation` slerp, while the existing ragdoll (which reparents the whole `Visual`,
+    rig included, onto a corpse) tumbles it -- so the body goes slack and falls rather than
+    toppling as a stiff statue. (TRUE per-limb physics is blocked: the FBX imports with `Root`
+    scaled 100x, so PhysicalBone3D collision shapes are sub-millimetre and Jolt explodes them --
+    even the editor's own "Create Physical Skeleton" output, parked at `scenes/enemies/
+    character_ragdoll.tscn`. The crumple is pose-only, so it's immune to the scale.) Archetype colour: `_archetype_tint`
     reads the Body's active albedo via `_albedo_of` (toon ShaderMaterial uniform OR
     StandardMaterial3D — order-independent vs ToonApplicator) and, if it isn't the plain-enemy
     crimson, blends the skin toward it (Rusher orange / Sniper cyan / etc. read on the rig). Pure:
@@ -543,11 +549,13 @@ scripts. On Windows the Godot exe detaches from the console, so use
     enemy gets a `Visual/Rig` (EnemyRig) with a mesh + an AnimationPlayer playing `idle`, at
     `RIG_SCALE`, untinted, Body/Head hidden + Gun kept; an orange-override enemy's rig tints
     toward orange; and a REAL death (`BodyHitbox.take_hit` 99999) carries the rig onto the
-    `enemy_corpse` (the corpse owns `Visual/Rig`) with its anim frozen. The look (scale ~0.62 to
+    `enemy_corpse` (the corpse owns `Visual/Rig`) with its anim frozen + crumple running. The look (scale ~0.62 to
     stand the ~2.69 m-at-scale-1 model at ~1.8 m, orientation `RIG_YAW_DEG` 180 since Kenney
-    faces +Z, archetype tint, kept gun) is eyeballed via `tools/character_preview.tscn`
-    (NON-headless). `tools/char_probe.tscn` is a non-asserting diagnostic that dumps the imported
-    FBX tree / bone names / anim clips. See **Rigged enemy characters** in `context_systems.md`.
+    faces +Z, archetype tint, kept gun) is eyeballed via `tools/character_preview.tscn`; the
+    death crumple via `tools/char_ragdoll_preview.tscn` (kills an enemy, tracks the corpse,
+    screenshots the fall + landing) -- both NON-headless. `tools/char_probe.tscn` is a
+    non-asserting diagnostic that dumps the imported FBX tree / bone names / anim clips / node
+    scales (it surfaced the 100x Root scale). See **Rigged enemy characters** in `context_systems.md`.
 
 `--check-only --script` does NOT register autoloads, so scripts referencing
 `GameEvents`/`RunManager` must be checked via the in-engine .tscn harnesses.
