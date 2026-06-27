@@ -517,6 +517,35 @@ scripts. On Windows the Godot exe detaches from the console, so use
     (real generated T + plus kit'd rooms), both NON-headless. `tools/kit_measure.tscn` is a
     non-asserting diagnostic that dumps each kit piece's AABB (the module grid). See
     **Modular kit skin** in `context_systems.md`.
+42. `res://tools/character_test.tscn` — rigged enemy characters Pass E (Kenney animated
+    characters replace the primitive capsule/sphere) → `CHARACTER_OK`. A new autoload
+    `CharacterApplicator` (`autoloads/character_applicator.gd`), a sibling of ToonApplicator
+    in the same node_added-observer mould, grafts a rigged Kenney character onto each EnemyAI
+    WITHOUT touching enemy.tscn / enemy_ai.gd / run_director.gd. It instances the base model
+    (`characterMedium.fbx`: Root/Skeleton3D/skinned mesh) under the enemy's `Visual` as an
+    `EnemyRig` (`scripts/enemies/enemy_rig.gd`, `class_name EnemyRig`), with its own
+    AnimationPlayer fed a runtime AnimationLibrary that GRAFTS the separate idle/run/jump FBX
+    clips (each clip's tracks are `Root/Skeleton3D:Bone`, so an AnimationPlayer rooted at the
+    model resolves them — the base model ships with NO animations). VISUAL-ONLY + BUILD-ALONGSIDE:
+    the rig is decorative (no collision); the capsule collider, hitboxes, navmesh and AI are
+    untouched. The applicator HIDES the primitive `Body`+`Head` (replaced by the character) but
+    KEEPS `Visual/Gun` visible — armed silhouette + the existing gun-drop ragdoll still fires;
+    the hidden `Head` stays as the headshot head-pop's (now invisible) donor. EnemyRig reads the
+    owning enemy's `velocity` from the OUTSIDE to switch idle<->run, and pauses its anim on the
+    enemy's `enemy_died` signal so the existing ragdoll (which reparents the whole `Visual`, rig
+    included, onto a corpse) tumbles a frozen-pose character. Archetype colour: `_archetype_tint`
+    reads the Body's active albedo via `_albedo_of` (toon ShaderMaterial uniform OR
+    StandardMaterial3D — order-independent vs ToonApplicator) and, if it isn't the plain-enemy
+    crimson, blends the skin toward it (Rusher orange / Sniper cyan / etc. read on the rig). Pure:
+    the applicator pipeline is ready + the anim lib carries looping `idle`/`run`. Scene: a plain
+    enemy gets a `Visual/Rig` (EnemyRig) with a mesh + an AnimationPlayer playing `idle`, at
+    `RIG_SCALE`, untinted, Body/Head hidden + Gun kept; an orange-override enemy's rig tints
+    toward orange; and a REAL death (`BodyHitbox.take_hit` 99999) carries the rig onto the
+    `enemy_corpse` (the corpse owns `Visual/Rig`) with its anim frozen. The look (scale ~0.62 to
+    stand the ~2.69 m-at-scale-1 model at ~1.8 m, orientation `RIG_YAW_DEG` 180 since Kenney
+    faces +Z, archetype tint, kept gun) is eyeballed via `tools/character_preview.tscn`
+    (NON-headless). `tools/char_probe.tscn` is a non-asserting diagnostic that dumps the imported
+    FBX tree / bone names / anim clips. See **Rigged enemy characters** in `context_systems.md`.
 
 `--check-only --script` does NOT register autoloads, so scripts referencing
 `GameEvents`/`RunManager` must be checked via the in-engine .tscn harnesses.

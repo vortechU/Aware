@@ -897,6 +897,13 @@ under a different sun tint. `RoomBuilder._resolve_palette()` (cached per layer i
 `_apply_environment()`; ENDLESS keeps the authored gray materials + fog-off
 environment byte-for-byte. The toon shader carries the per-layer albedo through.
 Covered by `tools/layer_look_test.tscn`; eyeballed via `tools/layer_look_preview.tscn`.
+**Modular kit skin shipped** — Kenney kits skin the procgen shell (Heap = space-station,
+Stack = modular-space; per-layer recolour; cover furnished with prop clusters), visual-only
+over the tested collision (see *Modular kit skin*). **Rigged enemy characters shipped (Pass E)**
+— living enemies are animated Kenney characters (`CharacterApplicator` autoload grafts an
+`EnemyRig` under the enemy's `Visual`; idle/run from velocity; archetype-tinted; primitives
+hidden but Gun kept; death rides the existing ragdoll), visual-only / no enemy_ai.gd edit
+(see *Rigged enemy characters*). `CHARACTER_OK`, all 42 harnesses green.
 All headless harnesses stay green (script/base/run/heap/heap-rooms/fragment/
 heap-ghost/descent/mode-select/verticality/tiers/tiers-reward/layer-look/rusher/sniper/grenadier/aim-evasion/
 dodge/ragdoll-polish/l-room/ragdoll/elite/menu/transition/lobby/movement/
@@ -966,11 +973,67 @@ meshes are invisible to the bake. Assets live under `Assets/kenney_space-station
   transition read. Both Kenney packs in use, as Vor wanted. (Eyeball via
   `tools/layer_look_preview.tscn` = real kitted + furnished Heap + Stack.) TUNING NOTE: the
   Heap's authored `fog_density` 0.020 is thick enough to obscure much of the kit detail -- drop
-  toward ~0.012-0.015 if the kit should breathe. Later: a toon-shaded tint material; prop
-  VARIETY (mix more prop types per box, not just barrels) + hackable-cube skin; rigged Kenney
-  characters on enemies (Pass E — needs care vs the primitive-mesh death ragdoll); hand-built
+  toward ~0.012-0.015 if the kit should breathe. Pass E (rigged Kenney characters on enemies)
+  is now DONE — see **Rigged enemy characters** below. Later: a toon-shaded tint material; prop
+  VARIETY (mix more prop types per box, not just barrels) + hackable-cube skin; hand-built
   hero rooms (Pass F); deeper layers (Cache/Kernel/I-O) can remix the two packs (or add a third).
 - **Tools** — `tools/kit_preview.tscn` (Heap + Stack rect rooms) + `tools/kit_shapes_preview.tscn`
   (real generated T + plus kit'd rooms), both NON-headless PNG renders for eyeballing;
   `tools/kit_measure.tscn` (non-asserting) dumps each piece's AABB to recover a kit's module
   grid. Covered by `tools/kit_room_test.tscn` (`KIT_ROOM_OK`).
+
+
+## Rigged enemy characters (Kenney) (added)
+
+Pass E of the real-visuals phase: living enemies stop being a capsule + sphere + box and
+become **rigged, animated Kenney characters**. Same lowest-risk recipe as the kit skin —
+**VISUAL-ONLY + BUILD-ALONGSIDE**: the rig is a non-colliding mesh layered over the enemy's
+existing tested collider/hitboxes/AI; enemy.tscn, enemy_ai.gd and run_director.gd are all
+untouched. Assets: `Assets/kenney_animated-characters-protagonists/` (and `-survivors/`) —
+`Model/characterMedium.fbx` (a 58-bone rig + 1-surface skinned mesh) + separate
+`Animations/{idle,run,jump}.fbx` clips + swappable `Skins/*.png`.
+
+- **`CharacterApplicator`** (`autoloads/character_applicator.gd`) — a sibling of ToonApplicator
+  in the same `get_tree().node_added` observer mould. When an `EnemyAI` enters the tree it builds
+  a rig under the enemy's `Visual` node and swaps the primitives for it. Robust no-op if the FBX
+  pipeline fails to load (enemies just stay primitive). Registered right after ToonApplicator.
+- **`EnemyRig`** (`scripts/enemies/enemy_rig.gd`, `class_name EnemyRig extends Node3D`) — the
+  rig wrapper added as `Visual/Rig`. Holds the model instance (`Model`) + its own AnimationPlayer.
+  Reads the owning enemy's `velocity` from the OUTSIDE each frame to switch `idle`<->`run`
+  (no enemy_ai reference), and pauses its anim on the enemy's `enemy_died` signal so the corpse
+  tumbles a frozen pose rather than a body still "idling" in mid-air.
+- **Animation grafting** — the base model ships with NO animations; the three clips live in
+  separate FBXs whose tracks are pathed `Root/Skeleton3D:Bone`. The applicator builds ONE shared
+  runtime `AnimationLibrary` (idle/run looped, jump one-shot) and each rig's AnimationPlayer is
+  rooted at its `Model`, so those track paths resolve onto the instantiated rig. The library is
+  built once and shared across every enemy (AnimationPlayer only reads the clips).
+- **Primitive swap** — `Visual/Body` + `Visual/Head` are HIDDEN (replaced by the character) but
+  `Visual/Gun` is KEPT visible: the enemy still reads as armed AND the existing gun-drop ragdoll
+  still detaches a visible piece. The hidden `Head` stays in place as the headshot head-pop's
+  (now invisible) donor — so `_pop_head`/`_drop_gun` keep finding their nodes and never error.
+- **Death = existing ragdoll, for free** — `enemy_ai._spawn_ragdoll` reparents the WHOLE `Visual`
+  (rig included) onto the `enemy_corpse` RigidBody3D and tumbles + shrinks it. Because the rig
+  rides inside `Visual`, the character becomes the corpse automatically (a frozen-pose stiff
+  ragdoll, anim paused by EnemyRig). The fancy head-pop is an invisible no-op (acceptable; the
+  visible gun-drop is preserved). All ragdoll harnesses stay green with rigs live.
+- **Archetype colour** — `_archetype_tint` reads the Body mesh's active albedo via `_albedo_of`
+  (a toon ShaderMaterial `albedo` uniform OR a StandardMaterial3D `albedo_color`, so it's
+  order-independent vs ToonApplicator) and, if it differs from the plain-enemy crimson
+  (`Color(0.66,0.18,0.18)`), blends the skin material toward it (`TINT_BLEND` 0.6). Every
+  archetype/elite already sets a Body override BEFORE add_child, so Rusher orange / Sniper cyan /
+  Grenadier olive / elite crimson-gold all read on the character with NO per-archetype code.
+- **Look constants** (baked, tuned via the preview) — `RIG_SCALE` 0.62 (model is ~2.69 m at
+  scale 1 measured from the world-space deform-bone span; → ~1.8 m to match the capsule),
+  `RIG_YAW_DEG` 180 (Kenney faces +Z, the enemy faces −Z), `RIG_Y` 0 (model origin = feet =
+  capsule feet). Material is a `StandardMaterial3D` (skin texture × tint, nearest-filtered, matte)
+  — NOT the inverted-hull toon outline, whose local-space width would balloon under the rig's
+  scale. This matches the kitted world (which is also StandardMaterial3D), so the characters fit.
+- **Status** — Pass E shipped; `CHARACTER_OK` = harness #42, all 42 green. Always-on for every
+  enemy in every mode (endless + campaign + sandbox). Next/later: attach the weapon to the
+  `RightHand` bone via a `BoneAttachment3D` (the kept gun currently floats near the hand); skin
+  VARIETY (per-archetype / per-layer / per-pack skins, survivors+protagonists); a proper death
+  pose or physical ragdoll; optionally a toon-shaded character material.
+- **Tools** — `tools/character_preview.tscn` (NON-headless) renders plain + tinted enemies next
+  to a height reference and PRINTS the measured `RIG_SCALE`; `tools/char_probe.tscn`
+  (non-asserting) dumps the imported FBX tree / bone names / anim clips. Covered by
+  `tools/character_test.tscn` (`CHARACTER_OK`).
