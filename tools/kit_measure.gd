@@ -1,36 +1,49 @@
 extends Node
-## Diagnostic: prints the local-space AABB (size + position) of the key Kenney
-## space-station kit pieces, so the RoomKit tiler knows the module grid. Not an
-## assertion harness -- just a measurement dump. Safe to delete.
+## Diagnostic: prints the local-space AABB (size + position) of the key Kenney kit pieces,
+## so the RoomKit tiler knows each kit's module grid. Not an assertion harness -- just a
+## measurement dump. Safe to delete.
 ## Run: godot --headless --path . res://tools/kit_measure.tscn
 
-const BASE := "res://Assets/kenney_space-station-kit/Models/GLB format/"
-const PIECES := [
-	"floor", "floor-panel", "floor-detail",
-	"wall", "wall-corner", "wall-pillar", "wall-door", "wall-window", "wall-detail",
-	"container", "container-tall", "container-wide", "container-flat",
-	"structure-barrier", "structure-barrier-high", "structure", "structure-panel",
-	"computer", "table", "pipe",
+const KITS := [
+	{
+		"name": "space-station",
+		"dir": "res://Assets/kenney_space-station-kit/Models/GLB format/",
+		"pieces": [
+			"floor", "floor-panel", "wall", "wall-corner", "wall-pillar", "wall-door",
+			"container", "container-tall", "structure-barrier",
+		],
+	},
+	{
+		"name": "modular-space",
+		"dir": "res://Assets/kenney_modular-space-kit_1.0/Models/GLB format/",
+		"pieces": [
+			"template-floor", "template-floor-big", "template-floor-detail",
+			"template-wall", "template-wall-half", "template-wall-top", "template-wall-corner",
+			"template-corner", "template-detail",
+			"room-small", "room-wide", "corridor", "corridor-wide",
+		],
+	},
 ]
 
 
 func _ready() -> void:
-	for p in PIECES:
-		var path: String = BASE + String(p) + ".glb"
-		var packed := load(path) as PackedScene
-		if packed == null:
-			print("MISS  %s (failed to load)" % p)
-			continue
-		var inst := packed.instantiate()
-		add_child(inst)
-		var aabb := _merged_aabb(inst)
-		print("%-24s size=(%6.3f, %6.3f, %6.3f)  pos=(%6.3f, %6.3f, %6.3f)  end=(%6.3f, %6.3f, %6.3f)" % [
-			p,
-			aabb.size.x, aabb.size.y, aabb.size.z,
-			aabb.position.x, aabb.position.y, aabb.position.z,
-			aabb.end.x, aabb.end.y, aabb.end.z,
-		])
-		inst.queue_free()
+	for kit in KITS:
+		print("=== KIT: %s  (%s) ===" % [kit.name, kit.dir])
+		for p in kit.pieces:
+			var path: String = String(kit.dir) + String(p) + ".glb"
+			var packed := load(path) as PackedScene
+			if packed == null:
+				print("MISS  %s (failed to load)" % p)
+				continue
+			var inst := packed.instantiate()
+			add_child(inst)
+			var aabb := _merged_aabb(inst)
+			print("%-26s size=(%6.3f, %6.3f, %6.3f)  pos=(%6.3f, %6.3f, %6.3f)" % [
+				p,
+				aabb.size.x, aabb.size.y, aabb.size.z,
+				aabb.position.x, aabb.position.y, aabb.position.z,
+			])
+			inst.queue_free()
 	print("KIT_MEASURE_DONE")
 	get_tree().quit(0)
 

@@ -36,15 +36,18 @@ func _ready() -> void:
 	add_child(_cam)
 	_cam.make_current()
 
-	# Real per-layer palettes straight from the catalog (Heap = room 1, Stack = room 7).
+	# Real per-layer palettes straight from the catalog (Heap = room 1, Stack = room 7),
+	# each skinned by the pack that layer will actually use: Heap = space-station kit (fine
+	# 1 m grid), Stack = modular-space kit (chunky 4 m grid) -- so the two read as different
+	# kits, not just different tints.
 	var heap: Dictionary = LayerCatalog.profile_for_room(1)
 	var stack: Dictionary = LayerCatalog.profile_for_room(7)
-	await _shoot_room(heap, "res://tools/kit_preview_heap.png")
-	await _shoot_room(stack, "res://tools/kit_preview_stack.png")
+	await _shoot_room(heap, RoomKit.space_station(), "res://tools/kit_preview_heap.png")
+	await _shoot_room(stack, RoomKit.modular_space(), "res://tools/kit_preview_stack.png")
 	get_tree().quit()
 
 
-func _shoot_room(profile: Dictionary, out_path: String) -> void:
+func _shoot_room(profile: Dictionary, kit: RoomKit, out_path: String) -> void:
 	# Fresh room each time so the two palettes don't overlap.
 	var old := get_node_or_null("Room")
 	if old != null:
@@ -57,7 +60,6 @@ func _shoot_room(profile: Dictionary, out_path: String) -> void:
 	var wall_tint: Color = profile.get("wall_color", Color.WHITE)
 	var struct_tint: Color = profile.get("struct_color", Color.WHITE)
 
-	var kit := RoomKit.space_station()
 	kit.skin_box(room, HALF, HEIGHT, floor_tint, wall_tint)
 
 	# A scatter of cover props, tinted to the same layer palette.

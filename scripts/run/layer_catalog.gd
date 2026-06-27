@@ -57,6 +57,9 @@ const LAYERS: Array[Dictionary] = [
 		"fog_color": Color(0.16, 0.26, 0.22),
 		"fog_density": 0.020,
 		"ambient_energy": 0.7,
+		# Visual skin: the fine-grid Kenney space-station kit overlays the shell, recoloured
+		# by the palette above (RoomBuilder._skin_shell, visual-only over the tested collision).
+		"kit": "space_station",
 	},
 	{
 		"id": "stack",
@@ -87,6 +90,9 @@ const LAYERS: Array[Dictionary] = [
 		"fog_color": Color(0.45, 0.52, 0.62),
 		"fog_density": 0.005,
 		"ambient_energy": 1.05,
+		# Visual skin: the chunky 4 m Kenney modular-space kit -- a different pack from the
+		# Heap, so descending into the Stack swaps the whole look, not just the tint.
+		"kit": "modular_space",
 	},
 ]
 

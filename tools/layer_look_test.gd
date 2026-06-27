@@ -8,9 +8,10 @@ extends Node
 ##     authored gray materials byte-for-byte.
 ##  B. Environment: applying a layer turns on its depth fog (colour + density) and
 ##     ambient; applying an empty profile restores the authored environment.
-##  C. Render: a real CAMPAIGN Heap room's shell floor actually carries the Heap
-##     colour through the toon shader (reads the toon `albedo` uniform, since the
-##     ToonApplicator has swapped material_override by then).
+##  C. Render: a real CAMPAIGN Heap room is now KIT-skinned -- the kit floor overlay
+##     carries the Heap floor colour (colormap x palette tint), while the gray
+##     collision shell survives underneath (mesh hidden). The palette still drives
+##     the colour; the kit is the visible surface.
 
 var fails: Array[String] = []
 const LEGACY_FLOOR := Color(0.33, 0.34, 0.37)
@@ -75,21 +76,34 @@ func _run() -> void:
 		builder._apply_environment({}, false)
 		_check(not env.fog_enabled, "ENDLESS should restore the fog-off environment")
 
-	# --- C. Render: the built Heap shell actually carries the Heap colour ---------
+	# --- C. Render: the built Heap room is KIT-skinned, recoloured to the palette --
 	RunManager.run_seed = 4242
-	await builder.build_room(2, heap)  # global room 2 = Heap sector 2 (combat)
-	var floor_body: Node = main.get_node_or_null("NavRegion/GeneratedShell/Floor")
-	_check(floor_body != null, "no procedural shell floor was built")
-	if floor_body != null:
-		var mesh: MeshInstance3D = null
-		for child in floor_body.get_children():
-			if child is MeshInstance3D:
-				mesh = child
-		_check(mesh != null, "shell floor has no mesh")
-		if mesh != null:
-			var mat: ShaderMaterial = mesh.material_override as ShaderMaterial
-			_check(mat != null, "shell floor was not toon-shaded (expected a ShaderMaterial)")
-			if mat != null:
-				var albedo: Color = mat.get_shader_parameter("albedo")
-				_check(albedo.is_equal_approx(heap.floor_color),
-						"rendered Heap floor colour (%s) is not the Heap palette" % albedo)
+	await builder.build_room(2, heap)  # global room 2 = Heap sector 2 (combat), kit-skinned
+	var shell: Node = main.get_node_or_null("NavRegion/GeneratedShell")
+	_check(shell != null, "no procedural shell was built")
+	if shell != null:
+		# The kit floor overlay exists and carries the Heap floor colour (colormap x tint).
+		var kit_floor: MultiMeshInstance3D = shell.get_node_or_null("KitFloor") as MultiMeshInstance3D
+		_check(kit_floor != null, "Heap room was not kit-skinned (no KitFloor overlay)")
+		if kit_floor != null:
+			var albedo: Color = _albedo_of(kit_floor.material_override)
+			_check(albedo.is_equal_approx(heap.floor_color),
+					"kit floor tint (%s) is not the Heap floor palette" % albedo)
+		# Build-alongside invariant: the gray collision Floor still exists, its mesh hidden.
+		var gray: Node = shell.get_node_or_null("Floor")
+		_check(gray != null, "shell lost its collision Floor StaticBody")
+		if gray != null:
+			for child in gray.get_children():
+				if child is MeshInstance3D:
+					_check(not (child as MeshInstance3D).visible,
+							"gray Heap floor mesh is still visible under the kit")
+
+
+## Albedo of a material regardless of type: toon ShaderMaterial uses the `albedo` uniform,
+## the kit tint uses a StandardMaterial3D albedo_color.
+func _albedo_of(mat: Material) -> Color:
+	if mat is ShaderMaterial:
+		return (mat as ShaderMaterial).get_shader_parameter("albedo")
+	if mat is BaseMaterial3D:
+		return (mat as BaseMaterial3D).albedo_color
+	return Color.BLACK

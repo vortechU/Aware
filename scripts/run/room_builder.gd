@@ -153,7 +153,8 @@ var _palette_cache: Dictionary = {}
 # Optional modular-kit skin (build-alongside): when a layer profile carries a "kit",
 # the gray shell is hidden and the kit's meshes are drawn over it, recoloured by the
 # layer palette. Visual only -- the collision boxes still drive the navmesh bake.
-var _room_kit: RoomKit = null
+# Cached per kit id (each layer can use a different pack -- Heap space-station, Stack modular).
+var _kits: Dictionary = {}
 # Scene environment, captured so per-layer fog/ambient can be applied + restored.
 var _environment: Environment
 var _base_ambient_energy := 1.0
@@ -421,14 +422,16 @@ func _build_shell() -> void:
 		_build_l_shell()
 
 
-## Resolve the layer's modular kit (cached). Only "space_station" exists today; any
-## profile carrying a "kit" key uses it. Returns null when the profile opts out.
+## Resolve the layer's modular kit by id (cached per id). "modular_space" picks the chunky
+## 4 m kit (the Stack); anything else falls back to the space-station kit (the Heap). Returns
+## null when the profile opts out (no "kit" key) -- ENDLESS + un-kitted layers stay gray.
 func _resolve_kit(profile: Dictionary) -> RoomKit:
 	if not profile.has("kit"):
 		return null
-	if _room_kit == null:
-		_room_kit = RoomKit.space_station()
-	return _room_kit
+	var id := String(profile["kit"])
+	if not _kits.has(id):
+		_kits[id] = RoomKit.modular_space() if id == "modular_space" else RoomKit.space_station()
+	return _kits[id]
 
 
 ## Overlay the active kit's modular meshes on the shell, recoloured by the layer palette.

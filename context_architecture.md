@@ -312,11 +312,13 @@ scripts. On Windows the Godot exe detaches from the console, so use
     while an empty profile (ENDLESS) returns the authored gray materials byte-for-byte.
     Environment: `_apply_environment(profile, ghost)` turns on the layer's depth fog
     (`fog_color`/`fog_density`) + `ambient_energy`, and an empty profile restores the
-    authored fog-off environment. Render: a real CAMPAIGN Heap room's shell floor
-    carries the Heap colour through the toon shader (reads the toon `albedo` uniform,
-    since the ToonApplicator has swapped material_override by build's end — same trick
-    as the rusher test). The actual look is eyeballed via `tools/layer_look_preview.tscn`
-    (renders a Heap room + a Stack room to PNGs, NON-headless). NOTE: `tools/layout_diag.tscn`
+    authored fog-off environment. Render: the Heap is now KIT-skinned (the layer enables
+    `"kit"`), so section C asserts the kit floor overlay (`GeneratedShell/KitFloor`) carries
+    the Heap floor colour (colormap x palette tint) while the gray collision Floor survives
+    underneath with its mesh hidden -- the build-alongside invariant. (`_albedo_of` reads
+    either a toon ShaderMaterial `albedo` uniform or a StandardMaterial3D `albedo_color`.)
+    The actual look is eyeballed via `tools/layer_look_preview.tscn`
+    (renders the real kitted Heap + Stack rooms to PNGs, NON-headless). NOTE: `tools/layout_diag.tscn`
     is a non-asserting diagnostic that dumps the archetype + footprint picked per room
     per mode — handy for confirming generation variety.
 29. `res://tools/dev_tools_test.tscn` — developer/playtest helpers → `DEV_TOOLS_OK`.
@@ -497,9 +499,16 @@ scripts. On Windows the Godot exe detaches from the console, so use
     T-shape gets `KitFloor`+`KitFloor2` + ≥2 `KitWallNotch*` overlays with NO kit floor tile
     in its bare NE corner; an ENDLESS build (no `"kit"`) stays on the plain gray shell (the
     gate). GATING: `build_room` only skins when `profile.has("kit")`, so ENDLESS + every
-    un-kitted layer is byte-for-byte unchanged. Real layers don't enable kits yet (capability
-    + forced-test first; next: add `"kit"` to Heap/Stack + update `layer_look_test`). GOTCHA
-    fixed here: `_build_shell` now clears old shell boxes IMMEDIATELY (`remove_child` + free,
+    un-kitted layer is byte-for-byte unchanged. LIVE ON REAL LAYERS: the Heap profile carries
+    `"kit":"space_station"` (fine 1 m grid) and the Stack `"kit":"modular_space"` (the chunky
+    4 m Kenney modular-space kit -- full-height single-piece walls + flat 4 m floor planes), so
+    descending Heap->Stack swaps the WHOLE pack, not just the tint. `RoomKit` is grid-agnostic:
+    it reads each piece's AABB, stacks the nearest whole wall courses then scales Y to fill
+    `WALL_HEIGHT` (space-station = 5x1 m; modular = 1 course stretched), and aligns the wall's
+    inner face by the mesh's local +Z extent (centred vs face-origin meshes both work).
+    `layer_look_test` (#28) now asserts the kit overlay carries the layer colour (the gray
+    shell mesh it used to read is hidden once a kit is on). GOTCHA fixed here: `_build_shell`
+    now clears old shell boxes IMMEDIATELY (`remove_child` + free,
     not deferred `queue_free`), else the same-frame re-skin sees a lingering `Floor`/`Wall*`
     that steals the new box's name and gets mis-skinned. Look eyeballed via
     `tools/kit_preview.tscn` (Heap + Stack rect rooms) and `tools/kit_shapes_preview.tscn`

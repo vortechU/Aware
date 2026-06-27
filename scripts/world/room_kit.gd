@@ -28,9 +28,23 @@ var _mesh_cache: Dictionary = {}
 var _tint_cache: Dictionary = {}
 
 
-## A ready-to-use space-station kit (defaults already describe it).
+## A ready-to-use space-station kit (defaults already describe it): a fine 1 m grid,
+## 1 m-tall wall courses. Used for the Heap.
 static func space_station() -> RoomKit:
 	return RoomKit.new()
+
+
+## The Kenney modular-space kit: a chunkier 4 m grid with full-height (~4.25 m) single-piece
+## walls and flat 4x4 floor planes. A whole different read from the space-station kit, so
+## crossing into the layer that uses it (the Stack) swaps the entire look, not just the tint.
+static func modular_space() -> RoomKit:
+	var k := RoomKit.new()
+	k.kit_dir = "res://Assets/kenney_modular-space-kit_1.0/Models/GLB format/"
+	k.floor_piece = "template-floor"
+	k.wall_piece = "template-wall"
+	k.module = 4.0
+	k.colormap = "res://Assets/kenney_modular-space-kit_1.0/Models/GLB format/Textures/colormap.png"
+	return k
 
 
 # ------------------------------------------------------------------ public tiling
@@ -44,12 +58,12 @@ func tile_floor(parent: Node3D, half: Vector2, top_y: float, tint := Color.WHITE
 	if info.mesh == null:
 		return null
 	var tile: float = info.size.x
-	var thick: float = info.size.y
+	var top_off: float = (info.aabb as AABB).end.y  # local top extent (slab thickness, or 0 for a flat plane)
 	var nx: int = maxi(1, int(round(half.x * 2.0 / tile)))
 	var nz: int = maxi(1, int(round(half.y * 2.0 / tile)))
 	var step_x := half.x * 2.0 / nx
 	var step_z := half.y * 2.0 / nz
-	var y := top_y - thick  # mesh base is at local y=0, top at `thick`; drop so top hits top_y
+	var y := top_y - top_off  # drop the mesh so its top surface lands on top_y
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.mesh = info.mesh
@@ -86,16 +100,20 @@ func build_wall_run(parent: Node3D, a: Vector2, b: Vector2, height: float,
 		start = b
 		face = -face
 	var mod_w: float = info.size.x
-	var thick: float = info.size.z
 	var course_h: float = info.size.y
+	var inner_z: float = (info.aabb as AABB).end.z  # local +Z extent = the inner (detailed) face
 	var n: int = maxi(1, int(round(length / mod_w)))
 	var step := length / n
-	var courses: int = maxi(1, int(ceil(height / course_h)))
+	# Stack the nearest whole number of courses, then scale Y so they fill `height` exactly.
+	# Space-station (1 m courses) -> 5 courses x1.0; modular (~4.25 m single-piece walls) ->
+	# 1 course scaled up to height. Both fit WALL_HEIGHT regardless of the kit's grid.
+	var courses: int = maxi(1, int(round(height / course_h)))
+	var y_scale := height / (course_h * courses)
 	var dir3 := Vector3(dir.x, 0.0, dir.y)
 	var face3 := Vector3(face.x, 0.0, face.y)
 	var start3 := Vector3(start.x, 0.0, start.y)
-	var basis := Basis(dir3 * (step / mod_w), Vector3.UP, face3)
-	var back := -face3 * (thick * 0.5)  # push module center back so its inner face hits the line
+	var basis := Basis(dir3 * (step / mod_w), Vector3.UP * y_scale, face3)
+	var back := -face3 * inner_z  # put the module's inner (+Z) face on the line (kits differ: centred vs face-origin)
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.mesh = info.mesh
@@ -104,7 +122,7 @@ func build_wall_run(parent: Node3D, a: Vector2, b: Vector2, height: float,
 	for k in n:
 		var along := start3 + dir3 * ((k + 0.5) * step)
 		for j in courses:
-			var origin := along + back + Vector3(0.0, j * course_h, 0.0)
+			var origin := along + back + Vector3(0.0, j * course_h * y_scale, 0.0)
 			mm.set_instance_transform(i, Transform3D(basis, origin))
 			i += 1
 	return _attach_mm(parent, mm, run_name, tint)
@@ -199,14 +217,16 @@ func _tint_material(tint: Color) -> StandardMaterial3D:
 func _piece(piece_name: String) -> Dictionary:
 	if _mesh_cache.has(piece_name):
 		return _mesh_cache[piece_name]
-	var out := {"mesh": null, "size": Vector3.ONE}
+	var out := {"mesh": null, "size": Vector3.ONE, "aabb": AABB()}
 	var packed := load(kit_dir + piece_name + ".glb") as PackedScene
 	if packed != null:
 		var inst := packed.instantiate()
 		var mi := _first_mesh(inst)
 		if mi != null:
+			var ab: AABB = (mi.mesh as Mesh).get_aabb()
 			out.mesh = mi.mesh
-			out.size = (mi.mesh as Mesh).get_aabb().size
+			out.size = ab.size
+			out.aabb = ab
 		inst.free()
 	_mesh_cache[piece_name] = out
 	return out

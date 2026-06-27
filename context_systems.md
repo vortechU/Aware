@@ -943,15 +943,23 @@ meshes are invisible to the bake. Assets live under `Assets/kenney_space-station
   unchanged. Kit nodes live under `GeneratedShell`, cleared on the next `_build_shell` (which
   now clears IMMEDIATELY via `remove_child`+free, so the same-frame re-skin doesn't trip on a
   lingering deferred-freed `Floor`/`Wall*` stealing the new box's name).
-- **Status** — Pass A (RoomKit + recolour proof) + Pass B (rect-shell skin wired, gated) +
-  Pass C (generic skin over ALL shapes incl. notched L/T/plus) shipped; `KIT_ROOM_OK`, all
-  41 harnesses green. Real layers do NOT enable kits yet (capability + forced-test first, the
-  build-alongside way). **Next: enable on real layers** = add `"kit"` to the Heap/Stack
-  profiles + update `layer_look_test` (it asserts the gray shell Floor mesh, which the kit
-  hides) so a real campaign run shows the kit + the Heap-vs-Stack recolour in every shape.
+- **Two packs, grid-agnostic** — `RoomKit.space_station()` (fine 1 m grid, 1 m wall courses)
+  and `RoomKit.modular_space()` (chunky 4 m grid, full-height ~4.25 m single-piece walls, flat
+  4 m floor planes). `RoomKit` reads each piece's AABB, so it adapts to any grid: it stacks the
+  nearest whole wall courses then scales Y to fill `WALL_HEIGHT` exactly, and aligns the wall's
+  inner face by the mesh's local +Z extent (handles centred vs face-origin meshes).
+  `RoomBuilder._resolve_kit` maps the profile's `"kit"` id to the pack (cached per id).
+- **Status** — Pass A (RoomKit + recolour) + B (rect skin) + C (generic over all shapes) +
+  LIVE ON REAL LAYERS shipped; `KIT_ROOM_OK`, all 41 harnesses green. The Heap uses the
+  space-station kit, the Stack the modular-space kit (`"kit"` keys in LayerCatalog), so
+  descending Heap->Stack swaps the WHOLE pack -- the strongest major-transition read. Both
+  Kenney packs are in use, as Vor wanted. (Eyeball via `tools/layer_look_preview.tscn` = real
+  kitted Heap + Stack.) TUNING NOTE: the Heap's authored `fog_density` 0.020 is thick enough
+  to obscure much of the new kit detail -- drop toward ~0.012-0.015 if the kit should breathe.
   Later: a toon-shaded tint material; prop vignettes for cover (Pass D — `container*` reads
   as crates better than `structure-barrier`); rigged Kenney characters on enemies (Pass E —
-  needs care vs the primitive-mesh death ragdoll); hand-built hero rooms (Pass F).
+  needs care vs the primitive-mesh death ragdoll); hand-built hero rooms (Pass F); deeper
+  layers (Cache/Kernel/I-O) can remix the two packs (or add a third).
 - **Tools** — `tools/kit_preview.tscn` (Heap + Stack rect rooms) + `tools/kit_shapes_preview.tscn`
   (real generated T + plus kit'd rooms), both NON-headless PNG renders for eyeballing;
   `tools/kit_measure.tscn` (non-asserting) dumps each piece's AABB to recover a kit's module
