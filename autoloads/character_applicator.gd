@@ -33,6 +33,7 @@ const SKIN: Texture2D = preload(
 const RIG_SCALE := 0.62      # model is ~2.69 m at scale 1 (world deform span); -> ~1.8 m
 const RIG_YAW_DEG := 180.0   # Kenney faces +Z; the enemy faces -Z, so flip.
 const RIG_Y := 0.0           # model origin sits at the feet (capsule feet = y 0)
+const HAND_BONE := "RightHand"  # the kept gun is glued here by EnemyRig
 
 # The enemy.tscn Body colour for a plain enemy; anything else is an archetype cue.
 const REGULAR_BODY := Color(0.66, 0.18, 0.18)
@@ -82,7 +83,16 @@ func _apply(enemy: Node) -> void:
 	_skin_model(model, tint)
 
 	visual.add_child(rig)
-	rig.setup(ap, enemy as Node3D)
+
+	# Hand the rig the kept Gun + the hand bone so EnemyRig can seat the gun in the
+	# hand each frame (without reparenting it -- the gun stays at Visual/Gun so the
+	# death ragdoll's _drop_gun still detaches it).
+	var gun := visual.get_node_or_null("Gun") as Node3D
+	var skel := _find_skeleton(model)
+	var hand_idx := -1
+	if skel != null:
+		hand_idx = skel.find_bone(HAND_BONE)
+	rig.setup(ap, enemy as Node3D, gun, skel, hand_idx)
 
 	# Swap the primitives for the rig: hide Body + Head (replaced by the character),
 	# keep the Gun for the armed silhouette + its gun-drop ragdoll piece.
@@ -175,6 +185,16 @@ func _find_mesh(n: Node) -> MeshInstance3D:
 		return n as MeshInstance3D
 	for c in n.get_children():
 		var r := _find_mesh(c)
+		if r != null:
+			return r
+	return null
+
+
+func _find_skeleton(n: Node) -> Skeleton3D:
+	if n is Skeleton3D:
+		return n as Skeleton3D
+	for c in n.get_children():
+		var r := _find_skeleton(c)
 		if r != null:
 			return r
 	return null

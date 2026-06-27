@@ -73,6 +73,21 @@ func _scene() -> void:
 	_check(not (plain.get_node("Visual/Head") as MeshInstance3D).visible, "Head should be hidden")
 	_check((plain.get_node("Visual/Gun") as MeshInstance3D).visible, "Gun should stay visible")
 
+	# Weapon-to-hand: the kept gun is driven to the RightHand bone each frame (NOT
+	# reparented), so it sits in the hand instead of floating at its scene offset.
+	for _i in 3:
+		await get_tree().process_frame
+	var gun := plain.get_node("Visual/Gun") as Node3D
+	var skel := _find_skeleton(rig)
+	_check(skel != null, "the rig should expose a Skeleton3D")
+	if skel != null:
+		var hi := skel.find_bone("RightHand")
+		_check(hi >= 0, "the rig should have a RightHand bone")
+		if hi >= 0:
+			var hand_world: Vector3 = (skel.global_transform * skel.get_bone_global_pose(hi)).origin
+			_check(gun.global_position.distance_to(hand_world) < 0.5,
+					"the gun should track the hand bone (%.2f m away)" % gun.global_position.distance_to(hand_world))
+
 	# Archetype enemy (orange body override, like _outfit_rusher) -> blended tint.
 	var orange := Color(0.85, 0.34, 0.05)
 	var rusher := _spawn(Vector3(3, 0.1, 0), orange, true)
@@ -142,6 +157,16 @@ func _find_mesh(n: Node) -> MeshInstance3D:
 		return n as MeshInstance3D
 	for c in n.get_children():
 		var r := _find_mesh(c)
+		if r != null:
+			return r
+	return null
+
+
+func _find_skeleton(n: Node) -> Skeleton3D:
+	if n is Skeleton3D:
+		return n as Skeleton3D
+	for c in n.get_children():
+		var r := _find_skeleton(c)
 		if r != null:
 			return r
 	return null

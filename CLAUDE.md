@@ -68,10 +68,12 @@ Headings in `context_systems.md`:
   observer) grafts an `EnemyRig` (model + runtime AnimationLibrary built from the separate
   idle/run/jump FBX clips) under the enemy's `Visual`, hides the primitive Body+Head (keeps the
   Gun for the armed look + gun-drop), tints the rig by the archetype body colour, and drives
-  idle/run from velocity. Visual-only over the tested collider/hitboxes/AI (enemy_ai.gd untouched);
-  death rides the existing ragdoll for free (rig reparents with `Visual`, frozen pose). Always-on,
-  every mode. `CHARACTER_OK` (#42), all 42 harnesses green. Next: weapon→hand bone, skin variety,
-  death pose. See **Rigged enemy characters** in `context_systems.md`.
+  idle/run from velocity. The kept gun is glued to the `RightHand` bone each frame (still
+  Visual-parented, so the gun-drop ragdoll is unchanged). Visual-only over the tested
+  collider/hitboxes/AI (enemy_ai.gd untouched); death rides the existing ragdoll for free (rig
+  reparents with `Visual`, frozen pose). Always-on, every mode. `CHARACTER_OK` (#42), all 42
+  harnesses green. Next: skin variety, death pose. See **Rigged enemy characters** in
+  `context_systems.md`.
 - **Developer tools** — DevTools autoload, debug-build cheats (F1 god / F2 kill all / F3 refill / F5-F6 room jump / F7 layer jump). Plus a **Sandbox** test map (main-menu **TEST MAP** → `scenes/ui/sandbox.tscn`): a kitted free-play arena (every hack adjective unlocked + both abilities granted, hackable cubes over dummies) for trying new mechanics outside the run flow.
 - **Current state** — running changelog of everything shipped so far.
 

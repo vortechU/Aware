@@ -530,7 +530,9 @@ scripts. On Windows the Godot exe detaches from the console, so use
     the rig is decorative (no collision); the capsule collider, hitboxes, navmesh and AI are
     untouched. The applicator HIDES the primitive `Body`+`Head` (replaced by the character) but
     KEEPS `Visual/Gun` visible — armed silhouette + the existing gun-drop ragdoll still fires;
-    the hidden `Head` stays as the headshot head-pop's (now invisible) donor. EnemyRig reads the
+    the hidden `Head` stays as the headshot head-pop's (now invisible) donor. EnemyRig glues that
+    kept gun to the rig's `RightHand` bone each frame (`_drive_gun`, NOT a reparent — so the gun
+    stays `Visual/Gun` and `_drop_gun` is unaffected), seating it in the hand vs floating. EnemyRig reads the
     owning enemy's `velocity` from the OUTSIDE to switch idle<->run, and pauses its anim on the
     enemy's `enemy_died` signal so the existing ragdoll (which reparents the whole `Visual`, rig
     included, onto a corpse) tumbles a frozen-pose character. Archetype colour: `_archetype_tint`

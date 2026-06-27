@@ -17,16 +17,25 @@ extends Node3D
 
 const RUN_SPEED := 0.6   # m/s above which we switch idle -> run
 const BLEND := 0.15      # crossfade time between locomotion clips
+# Seat the gun in the right hand: an offset from the hand bone, in the enemy's
+# local frame (so it reads aim-aligned, forward = -Z). Tuned via the preview.
+const GUN_OFFSET := Vector3(0.04, -0.02, -0.16)
 
 var _anim: AnimationPlayer
 var _enemy: Node3D       # the EnemyAI (CharacterBody3D); set at setup, valid as the husk
+var _gun: Node3D         # the primitive Visual/Gun, KEPT for the gun-drop ragdoll
+var _skel: Skeleton3D
+var _hand_idx := -1
 var _dead := false
 
 
 ## Wired by CharacterApplicator after the model + player are parented in.
-func setup(anim: AnimationPlayer, enemy: Node3D) -> void:
+func setup(anim: AnimationPlayer, enemy: Node3D, gun: Node3D, skel: Skeleton3D, hand_idx: int) -> void:
 	_anim = anim
 	_enemy = enemy
+	_gun = gun
+	_skel = skel
+	_hand_idx = hand_idx
 	if _enemy != null and _enemy.has_signal("enemy_died"):
 		_enemy.enemy_died.connect(_on_enemy_died)
 	if _anim != null and _anim.has_animation("idle"):
@@ -34,12 +43,30 @@ func setup(anim: AnimationPlayer, enemy: Node3D) -> void:
 
 
 func _process(_delta: float) -> void:
-	if _dead or _anim == null or not is_instance_valid(_enemy):
+	if _dead or not is_instance_valid(_enemy):
+		return
+	_drive_locomotion()
+	_drive_gun()
+
+
+func _drive_locomotion() -> void:
+	if _anim == null:
 		return
 	var speed := Vector2(_enemy.velocity.x, _enemy.velocity.z).length()
 	var want := "run" if speed > RUN_SPEED else "idle"
 	if _anim.current_animation != want and _anim.has_animation(want):
 		_anim.play(want, BLEND)
+
+
+## Keep the (still Visual-parented, drop-ready) gun glued to the hand bone, aimed
+## along the enemy's facing. We DON'T reparent it under a BoneAttachment3D so the
+## death ragdoll's `_drop_gun` still finds `Visual/Gun` and detaches it normally.
+func _drive_gun() -> void:
+	if _gun == null or not is_instance_valid(_gun) or _skel == null or _hand_idx < 0:
+		return
+	var hand := _skel.global_transform * _skel.get_bone_global_pose(_hand_idx)
+	var aim := (_enemy as Node3D).global_transform.basis
+	_gun.global_transform = Transform3D(aim, hand.origin + aim * GUN_OFFSET)
 
 
 func _on_enemy_died(_e: Variant = null) -> void:

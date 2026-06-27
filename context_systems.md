@@ -1011,6 +1011,12 @@ untouched. Assets: `Assets/kenney_animated-characters-protagonists/` (and `-surv
   `Visual/Gun` is KEPT visible: the enemy still reads as armed AND the existing gun-drop ragdoll
   still detaches a visible piece. The hidden `Head` stays in place as the headshot head-pop's
   (now invisible) donor — so `_pop_head`/`_drop_gun` keep finding their nodes and never error.
+- **Weapon in hand** — EnemyRig drives the kept `Visual/Gun` to the rig's `RightHand` bone each
+  frame (`_drive_gun`: `gun.global_transform = enemy_basis @ (hand_world + GUN_OFFSET)`), so it
+  sits in the hand (aimed along the enemy's −Z facing) instead of floating at its scene offset,
+  and tracks the hand through the run cycle. Crucially it is NOT reparented under a
+  `BoneAttachment3D` — the gun stays a child of `Visual`, so `enemy_ai._drop_gun` still finds
+  `Visual/Gun` and the death gun-drop is unchanged (the ragdoll harnesses stay green).
 - **Death = existing ragdoll, for free** — `enemy_ai._spawn_ragdoll` reparents the WHOLE `Visual`
   (rig included) onto the `enemy_corpse` RigidBody3D and tumbles + shrinks it. Because the rig
   rides inside `Visual`, the character becomes the corpse automatically (a frozen-pose stiff
@@ -1028,11 +1034,10 @@ untouched. Assets: `Assets/kenney_animated-characters-protagonists/` (and `-surv
   capsule feet). Material is a `StandardMaterial3D` (skin texture × tint, nearest-filtered, matte)
   — NOT the inverted-hull toon outline, whose local-space width would balloon under the rig's
   scale. This matches the kitted world (which is also StandardMaterial3D), so the characters fit.
-- **Status** — Pass E shipped; `CHARACTER_OK` = harness #42, all 42 green. Always-on for every
-  enemy in every mode (endless + campaign + sandbox). Next/later: attach the weapon to the
-  `RightHand` bone via a `BoneAttachment3D` (the kept gun currently floats near the hand); skin
-  VARIETY (per-archetype / per-layer / per-pack skins, survivors+protagonists); a proper death
-  pose or physical ragdoll; optionally a toon-shaded character material.
+- **Status** — Pass E + weapon-in-hand shipped; `CHARACTER_OK` = harness #42, all 42 green.
+  Always-on for every enemy in every mode (endless + campaign + sandbox). Next/later: skin
+  VARIETY (per-archetype / per-layer / per-pack skins, survivors+protagonists for "corrupted"
+  enemies); a proper death pose or physical ragdoll; optionally a toon-shaded character material.
 - **Tools** — `tools/character_preview.tscn` (NON-headless) renders plain + tinted enemies next
   to a height reference and PRINTS the measured `RIG_SCALE`; `tools/char_probe.tscn`
   (non-asserting) dumps the imported FBX tree / bone names / anim clips. Covered by
