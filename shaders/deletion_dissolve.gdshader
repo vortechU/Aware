@@ -17,6 +17,7 @@ uniform vec3 edge_color : source_color = vec3(0.35, 1.0, 0.65);  // hot "delete"
 uniform float edge_width : hint_range(0.0, 0.5) = 0.14;
 uniform float cell : hint_range(4.0, 80.0) = 26.0;       // dissolve block density
 uniform float glitch : hint_range(0.0, 2.0) = 1.0;       // jitter / RGB-split amount
+uniform float jitter : hint_range(0.0, 0.1) = 0.012;     // per-vertex wobble (0 = clean fade)
 uniform float emission_boost : hint_range(0.0, 8.0) = 4.0;
 
 float hash(vec2 p) {
@@ -26,9 +27,9 @@ float hash(vec2 p) {
 }
 
 void vertex() {
-	// A subtle corruption wobble that grows as the body is deleted.
+	// A corruption wobble that grows as the body is deleted (jitter tunes the spikiness).
 	float j = hash(vec2(float(VERTEX_ID) * 0.013, TIME)) - 0.5;
-	VERTEX += NORMAL * j * 0.03 * dissolve * glitch;
+	VERTEX += NORMAL * j * jitter * dissolve * glitch;
 }
 
 void fragment() {

@@ -545,8 +545,9 @@ scripts. On Windows the Godot exe detaches from the console, so use
     rig included, onto a corpse) tumbles it -- so the body goes slack and falls rather than
     toppling as a stiff statue. (TRUE per-limb physics is blocked: the FBX imports with `Root`
     scaled 100x, so PhysicalBone3D collision shapes are sub-millimetre and Jolt explodes them --
-    even the editor's own "Create Physical Skeleton" output, parked at `scenes/enemies/
-    character_ragdoll.tscn`. The crumple is pose-only, so it's immune to the scale.) Archetype colour: `_archetype_tint`
+    even the editor's own "Create Physical Skeleton" output. The crumple is pose-only, so it's immune
+    to the scale; the physical-skeleton experiment was dropped once enemy death moved to the deletion
+    VFX, so true ragdoll would be a from-scratch redo if the FBX scale is ever fixed.) Archetype colour: `_archetype_tint`
     reads the Body's active albedo via `_albedo_of` (toon ShaderMaterial uniform OR
     StandardMaterial3D — order-independent vs ToonApplicator) and, if it isn't the plain-enemy
     crimson, blends the skin toward it (Rusher orange / Sniper cyan / etc. read on the rig). Pure:
@@ -594,8 +595,10 @@ scripts. On Windows the Godot exe detaches from the console, so use
     dissolve shader load and it's enabled by default. Scene: a real kill freezes the corpse (no
     horizontal flight over 18 frames), swaps its meshes to the dissolve shader (starting at 0), the
     dissolve advances over time, and the pieces free themselves once it completes. Shaders don't
-    compile headless, so the LOOK (spiky green shard-burst + data bits) is eyeballed via
-    `tools/deletion_preview.tscn` (NON-headless: intact/early/mid PNGs). The EnemyRig crumple still
+    compile headless, so the LOOK (green cell-dissolve + data bits; spikiness via the shader's
+    `jitter` uniform, default 0.012) is eyeballed via `tools/deletion_preview.tscn` (NON-headless:
+    intact/early/mid PNGs) + `tools/deletion_compare_preview.tscn` (jitter 0.0/0.012/0.03 side by
+    side). The EnemyRig crumple still
     runs (orthogonal — it moves bones, this swaps materials + freezes). See **Enemy death: deletion
     VFX** in `context_systems.md`.
 

@@ -1026,15 +1026,16 @@ untouched. Assets: `Assets/kenney_animated-characters-protagonists/` (and `-surv
   to the scale issue below. The head-pop is an invisible no-op; the visible gun-drop is preserved.
   All ragdoll harnesses stay green with rigs live.
 - **TRUE physics ragdoll is BLOCKED (asset scale)** — a real per-limb `PhysicalBone3D` ragdoll was
-  attempted (procedurally AND via the editor's "Create Physical Skeleton", parked at
-  `scenes/enemies/character_ragdoll.tscn`). Both EXPLODE because the Kenney FBX imports with its
+  attempted (procedurally AND via the editor's "Create Physical Skeleton"). Both EXPLODE because the
+  Kenney FBX imports with its
   `Root` node scaled **100x**: the skeleton + every generated physical-bone capsule live in 1/100
   space (sub-millimetre shapes), far below what Jolt can simulate stably. Confirmed with a minimal
   drop test of the editor ragdoll (zero of our code) -- it still explodes, so it's the asset, not
   the ragdoll logic. Fixing it means correcting the 100x import scale across the model + the 3
   anim FBXs and regenerating the physical skeleton (a real pipeline task, deferred). The crumple
-  is the reliable stand-in; the parked `character_ragdoll.tscn` is kept for a future scale-fixed
-  attempt.
+  is the reliable stand-in. (The editor-authored physical-skeleton scene was removed once enemy
+  death moved to the **deletion VFX** — physics ragdoll is no longer the planned death anyway, so a
+  future attempt would start fresh.)
 - **Archetype colour** — `_archetype_tint` reads the Body mesh's active albedo via `_albedo_of`
   (a toon ShaderMaterial `albedo` uniform OR a StandardMaterial3D `albedo_color`, so it's
   order-independent vs ToonApplicator) and, if it differs from the plain-enemy crimson
@@ -1136,7 +1137,9 @@ rather than physically ragdolling. Same lowest-risk recipe as the kit/characters
   it moves bones while this swaps materials + freezes, so the body slumps a touch AS it's deleted,
   still in place. The kept gun is dropped by `_drop_gun` then frozen + dissolved with everything else.
 - **Status** — shipped; `DELETION_VFX_OK` = harness #43, all 43 green. Look eyeballed via
-  `tools/deletion_preview.tscn` (NON-headless: intact / early / mid PNGs) — a violent spiky
-  green shard-burst + data bits. (The spiky read comes from the vertex jitter `0.03` in the shader's
-  `vertex()`; dial it down for a calmer fade.) Future: per-layer dissolve colours (tie `edge_color` to
-  the layer palette), an SFX hook on the burst.
+  `tools/deletion_preview.tscn` (NON-headless: intact / early / mid PNGs) — a green cell-dissolve
+  + data-bit burst. The spikiness is the shader's `jitter` uniform (per-vertex wobble): **default
+  `0.012`** (a balanced break-up that keeps the body readable), `0.0` = a clean in-place fade, `0.03`
+  = the original violent shard-explosion. Compare via `tools/deletion_compare_preview.tscn` (renders
+  all three side by side → `tools/deletion_compare.png`). Future: per-layer dissolve colours (tie
+  `edge_color` to the layer palette), an SFX hook on the burst.
