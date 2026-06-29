@@ -60,6 +60,9 @@ const LAYERS: Array[Dictionary] = [
 		# Visual skin: the fine-grid Kenney space-station kit overlays the shell, recoloured
 		# by the palette above (RoomBuilder._skin_shell, visual-only over the tested collision).
 		"kit": "space_station",
+		# Enemy skins: a decayed memory (corruption 0.5) mixes zombie grunts into the
+		# protagonist rotation (CharacterApplicator.SKIN_SETS). Archetypes stay intact.
+		"skin_set": "corrupted",
 	},
 	{
 		"id": "stack",

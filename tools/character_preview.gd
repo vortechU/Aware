@@ -49,8 +49,10 @@ func _ready() -> void:
 	_spawn_enemies()
 
 	# Camera at -Z, looking toward +Z: the enemies face -Z, so this frames their FRONTS.
-	_cam.position = Vector3(0.0, 1.1, -4.6)
-	_cam.look_at(Vector3(0.0, 0.9, 0.0), Vector3.UP)
+	# Pulled back + widened to fit the whole row of 12 (4 plain + 4 archetypes + 4 corrupted).
+	_cam.fov = 58.0
+	_cam.position = Vector3(0.0, 1.3, -15.0)
+	_cam.look_at(Vector3(0.0, 0.85, 0.0), Vector3.UP)
 
 	for _i in 24:
 		await get_tree().process_frame
@@ -87,12 +89,35 @@ func _measure_scale() -> void:
 	probe.free()
 
 
-## Three enemies: a plain one + two with archetype-style body overrides, so the
-## tint mapping reads. Plus a TARGET_HEIGHT reference pole behind the plain one.
+## A row of 12: the 4 default plain skins (left, via the deterministic spawn-order
+## rotation), the 4 archetypes (middle, each its fixed skin + archetype body colour),
+## then the 4 CORRUPTED-layer plain grunts (right, spawned under a forced CAMPAIGN
+## Heap context so the applicator pulls the "corrupted" pool -- a mix of normal +
+## zombie skins). Prints the skin each one received so the mapping reads from the log.
+const STEP := 1.35
 func _spawn_enemies() -> void:
-	_one(Vector3(0.0, 0.0, 0.0), Color.WHITE, false)                 # plain (no override)
-	_one(Vector3(-1.6, 0.0, 0.0), Color(0.85, 0.34, 0.05), true)     # rusher orange
-	_one(Vector3(1.6, 0.0, 0.0), Color(0.1, 0.5, 0.62), true)        # sniper cyan
+	var x := -STEP * 5.5   # centre a 12-wide row
+	# Default plain grunts -- spawned first so the rotation runs 0..3 over all four.
+	for i in 4:
+		_one(Vector3(x, 0.0, 0.0), Color.WHITE, "", "plain")
+		x += STEP
+	# Archetypes -- meta + archetype body colour, like _outfit_* in RunDirector.
+	_one(Vector3(x, 0.0, 0.0), Color(0.85, 0.34, 0.05), "rusher", "rusher");       x += STEP
+	_one(Vector3(x, 0.0, 0.0), Color(0.32, 0.46, 0.16), "grenadier", "grenadier"); x += STEP
+	_one(Vector3(x, 0.0, 0.0), Color(0.1, 0.5, 0.62), "sniper", "sniper");         x += STEP
+	_one(Vector3(x, 0.0, 0.0), Color(0.32, 0.05, 0.09), "elite", "elite");         x += STEP
+
+	# Corrupted layer (Pass 2): drive RunManager into a Heap room so active_layer_
+	# profile() carries skin_set "corrupted", spawn 4 grunts, then restore.
+	var prev_mode = RunManager.run_mode
+	var prev_room = RunManager.current_room
+	RunManager.run_mode = RunManager.RunMode.CAMPAIGN
+	RunManager.current_room = 1
+	for i in 4:
+		_one(Vector3(x, 0.0, 0.0), Color.WHITE, "", "corrupt")
+		x += STEP
+	RunManager.run_mode = prev_mode
+	RunManager.current_room = prev_room
 
 	var pole := MeshInstance3D.new()
 	var bm := BoxMesh.new()
@@ -102,14 +127,17 @@ func _spawn_enemies() -> void:
 	pmat.albedo_color = Color(1.0, 0.9, 0.2)
 	pole.material_override = pmat
 	add_child(pole)
-	pole.position = Vector3(0.0, TARGET_HEIGHT * 0.5, -0.6)
+	pole.position = Vector3(-STEP * 5.5, TARGET_HEIGHT * 0.5, -0.6)
 
 
-func _one(pos: Vector3, body_color: Color, override_body: bool) -> void:
+## Spawn one enemy. `archetype` "" = a plain grunt (rotation skin); otherwise it's
+## stamped with that archetype meta + the given body colour, exactly as RunDirector
+## outfits it before add_child, so CharacterApplicator skins + tints it accordingly.
+## `label` is just for the CHAR_SKIN log line.
+func _one(pos: Vector3, body_color: Color, archetype: String, label: String) -> void:
 	var e := ENEMY.instantiate()
-	# Apply an archetype-style override BEFORE add_child, like RunDirector does, so
-	# the CharacterApplicator sees the colour cue when node_added fires.
-	if override_body:
+	if archetype != "":
+		e.set_meta(archetype, true)
 		var bodymesh := e.get_node("Visual/Body") as MeshInstance3D
 		var bmat := StandardMaterial3D.new()
 		bmat.albedo_color = body_color
@@ -119,6 +147,32 @@ func _one(pos: Vector3, body_color: Color, override_body: bool) -> void:
 	# Freeze: no AI/gravity in the preview (the EnemyRig still processes its anim).
 	e.set_physics_process(false)
 	e.set_process(false)
+
+	var rig := e.get_node_or_null("Visual/Rig")
+	var skin := _skin_of(rig)
+	print("CHAR_SKIN  %-10s -> %s" % [label, skin.resource_path if skin != null else "<none>"])
+
+
+func _skin_of(rig: Node) -> Texture2D:
+	if rig == null:
+		return null
+	var mi := _find_mesh(rig)
+	if mi == null:
+		return null
+	var m := mi.material_override
+	if m is StandardMaterial3D:
+		return (m as StandardMaterial3D).albedo_texture
+	return null
+
+
+func _find_mesh(n: Node) -> MeshInstance3D:
+	if n is MeshInstance3D:
+		return n as MeshInstance3D
+	for c in n.get_children():
+		var r := _find_mesh(c)
+		if r != null:
+			return r
+	return null
 
 
 func _find_skeleton(n: Node) -> Skeleton3D:

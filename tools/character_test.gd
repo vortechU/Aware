@@ -46,6 +46,32 @@ func _pure() -> void:
 		_check(lib.get_animation("idle").loop_mode == Animation.LOOP_LINEAR,
 				"idle should be set to loop")
 
+	# Skin variety registry (Pass 1 of the skin-variety follow-up).
+	var plain: Array = CharacterApplicator.PLAIN_SKINS
+	_check(plain.size() >= 3, "plain rotation should offer >= 3 skins, got %d" % plain.size())
+	_check(plain[0] != null and plain[1] != null and plain[0] != plain[1],
+			"consecutive plain skins should differ (deterministic rotation)")
+	# Distinct textures across the whole plain set (no accidental duplicate entries).
+	var seen := {}
+	for s in plain:
+		seen[s] = true
+	_check(seen.size() == plain.size(), "plain skins should all be distinct")
+	# Each archetype maps to a real, fixed skin.
+	for key in CharacterApplicator.ARCHETYPE_KEYS:
+		_check(CharacterApplicator.ARCHETYPE_SKINS.get(key) != null,
+				"archetype '%s' should map to a skin" % key)
+
+	# Per-layer skin sets (Pass 2 -- corruption). No profile / ENDLESS -> protagonists;
+	# a corrupted layer mixes in a survivors-pack zombie skin.
+	var def_pool: Array = CharacterApplicator._plain_pool_for({})
+	_check(def_pool == CharacterApplicator.PLAIN_SKINS, "empty profile should map to the default plain pool")
+	var corrupt_pool: Array = CharacterApplicator._plain_pool_for({"skin_set": "corrupted"})
+	_check(corrupt_pool != CharacterApplicator.PLAIN_SKINS, "a corrupted layer should swap the plain pool")
+	_check(CharacterApplicator.SKIN_ZOMBIE_A in corrupt_pool or CharacterApplicator.SKIN_ZOMBIE_C in corrupt_pool,
+			"the corrupted pool should include a zombie skin")
+	_check(CharacterApplicator._plain_pool_for({"skin_set": "no_such_set"}) == CharacterApplicator.PLAIN_SKINS,
+			"an unknown skin_set should fall back to the default pool")
+
 
 # --- Scene: real enemies rigged by the live autoload ---
 
@@ -115,6 +141,57 @@ func _scene() -> void:
 	if vap != null:
 		_check(not vap.is_playing(), "the rig animation should freeze (pause) on death")
 
+	# --- Skin variety (Pass 1) ---
+	# Two plain grunts spawned back-to-back rotate to different skins (crowd variety,
+	# deterministic by spawn order -- the pick is baked once, not re-rolled per frame).
+	var g1 := _spawn(Vector3(0, 0.1, 6), Color.WHITE, false)
+	var g2 := _spawn(Vector3(3, 0.1, 6), Color.WHITE, false)
+	var s1 := _rig_skin(g1.get_node_or_null("Visual/Rig"))
+	var s2 := _rig_skin(g2.get_node_or_null("Visual/Rig"))
+	_check(s1 != null and s2 != null, "plain grunts should carry a skin texture")
+	_check(s1 != s2, "two plain grunts should get different skins (variety)")
+	_check(s1 in CharacterApplicator.PLAIN_SKINS, "a grunt's skin should come from the plain set")
+
+	# An enemy tagged with an archetype meta (as RunDirector stamps it BEFORE
+	# add_child) gets that archetype's fixed skin, not a plain-rotation one.
+	var sniper := _spawn_meta(Vector3(-3, 0.1, 6), "sniper")
+	var ss := _rig_skin(sniper.get_node_or_null("Visual/Rig"))
+	_check(ss == CharacterApplicator.ARCHETYPE_SKINS["sniper"],
+			"a meta-tagged sniper should wear the sniper skin")
+
+	# --- Corruption (Pass 2): a corrupted layer mixes zombies into plain grunts ---
+	# Drive the live RunManager into a CAMPAIGN Heap room (skin_set "corrupted") so
+	# the applicator reads the corrupted pool through active_layer_profile(). Restore
+	# it after so no global state leaks to later harnesses sharing the process.
+	var prev_mode = RunManager.run_mode
+	var prev_room := RunManager.current_room
+	RunManager.run_mode = RunManager.RunMode.CAMPAIGN
+	RunManager.current_room = 1   # Heap, sector 1
+	_check(RunManager.active_layer_profile().get("skin_set", "") == "corrupted",
+			"the Heap profile should carry skin_set 'corrupted'")
+
+	# Spawn a full pool's worth of plain grunts; their skins should include a zombie.
+	var zombie_seen := false
+	var all_in_pool := true
+	for i in 4:
+		var g := _spawn(Vector3(-6 + i * 2, 0.1, 9), Color.WHITE, false)
+		var sk := _rig_skin(g.get_node_or_null("Visual/Rig"))
+		if sk == CharacterApplicator.SKIN_ZOMBIE_A or sk == CharacterApplicator.SKIN_ZOMBIE_C:
+			zombie_seen = true
+		if not (sk in CharacterApplicator.SKIN_SETS["corrupted"]):
+			all_in_pool = false
+	_check(zombie_seen, "a corrupted layer's grunts should include a zombie skin")
+	_check(all_in_pool, "every corrupted grunt's skin should come from the corrupted pool")
+
+	# Special types are NOT corrupted: a rusher keeps its fixed protagonist skin.
+	var crusher := _spawn_meta(Vector3(6, 0.1, 9), "rusher")
+	var cs := _rig_skin(crusher.get_node_or_null("Visual/Rig"))
+	_check(cs == CharacterApplicator.ARCHETYPE_SKINS["rusher"],
+			"an archetype keeps its fixed skin even in a corrupted layer")
+
+	RunManager.run_mode = prev_mode
+	RunManager.current_room = prev_room
+
 
 # --- helpers ---
 
@@ -128,6 +205,29 @@ func _spawn(pos: Vector3, body_color: Color, override_body: bool) -> Node3D:
 	e.global_position = pos
 	e.set_physics_process(false)  # no nav region in the harness
 	return e
+
+
+## Spawn an enemy tagged with an archetype meta (the way RunDirector's _outfit_*
+## stamps it before add_child), so CharacterApplicator classifies it by archetype.
+func _spawn_meta(pos: Vector3, archetype: String) -> Node3D:
+	var e: Node3D = ENEMY.instantiate()
+	e.set_meta(archetype, true)
+	add_child(e)
+	e.global_position = pos
+	e.set_physics_process(false)
+	return e
+
+
+func _rig_skin(rig: Node) -> Texture2D:
+	if rig == null:
+		return null
+	var mi := _find_mesh(rig)
+	if mi == null:
+		return null
+	var m := mi.material_override
+	if m is StandardMaterial3D:
+		return (m as StandardMaterial3D).albedo_texture
+	return null
 
 
 func _floor() -> void:

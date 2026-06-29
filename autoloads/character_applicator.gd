@@ -24,8 +24,66 @@ const BASE_MODEL: PackedScene = preload(
 const ANIM_IDLE := "res://Assets/kenney_animated-characters-protagonists/Animations/idle.fbx"
 const ANIM_RUN := "res://Assets/kenney_animated-characters-protagonists/Animations/run.fbx"
 const ANIM_JUMP := "res://Assets/kenney_animated-characters-protagonists/Animations/jump.fbx"
-const SKIN: Texture2D = preload(
+# --- Skin variety (Pass E follow-up) ---------------------------------------
+# One model, swappable skin textures (all share the same UV layout, so a skin is
+# just a different albedo_texture on the same StandardMaterial3D). Plain grunts
+# rotate through the set for crowd variety; each archetype gets a recognizable
+# fixed skin (still tinted toward its hue by _archetype_tint, so the orange/cyan/
+# olive colour cue survives). criminalMaleA is the historical default + fallback.
+const SKIN_CRIMINAL: Texture2D = preload(
 	"res://Assets/kenney_animated-characters-protagonists/Skins/criminalMaleA.png")
+const SKIN_SKATER_M: Texture2D = preload(
+	"res://Assets/kenney_animated-characters-protagonists/Skins/skaterMaleA.png")
+const SKIN_SKATER_F: Texture2D = preload(
+	"res://Assets/kenney_animated-characters-protagonists/Skins/skaterFemaleA.png")
+const SKIN_CYBORG: Texture2D = preload(
+	"res://Assets/kenney_animated-characters-protagonists/Skins/cyborgFemaleA.png")
+
+# Survivors pack (Pass 2 -- "corrupted" memories). The survivors `characterMedium.fbx`
+# is BYTE-IDENTICAL to the protagonists one (same mesh + skeleton + UVs), so these
+# skins drop onto the existing rig with NO new model or anim graft -- a "skin" is
+# still just a different albedo_texture. Used in decayed/corrupted layers.
+const SKIN_ZOMBIE_A: Texture2D = preload(
+	"res://Assets/kenney_animated-characters-survivors/Skins/zombieA.png")
+const SKIN_ZOMBIE_C: Texture2D = preload(
+	"res://Assets/kenney_animated-characters-survivors/Skins/zombieC.png")
+const SKIN_SURVIVOR_M: Texture2D = preload(
+	"res://Assets/kenney_animated-characters-survivors/Skins/survivorMaleB.png")
+const SKIN_SURVIVOR_F: Texture2D = preload(
+	"res://Assets/kenney_animated-characters-survivors/Skins/survivorFemaleA.png")
+
+## Plain enemies rotate through a skin POOL in spawn order (deterministic + stable
+## per enemy: the pick is baked into the material once at graft, never re-rolled per
+## frame, and squad spawn order is itself deterministic -> runs reproduce). The pool
+## is the layer's -- see SKIN_SETS. PLAIN_SKINS is the default (protagonists).
+const PLAIN_SKINS := [SKIN_CRIMINAL, SKIN_SKATER_M, SKIN_SKATER_F, SKIN_CYBORG]
+
+## Per-layer plain-grunt skin pools, chosen by the active layer profile's `skin_set`
+## key (the same declarative pattern as `kit`/palette). "" / absent = the default
+## protagonists (intact memories), so ENDLESS + every un-tagged layer is unchanged.
+## A corrupted layer mixes zombies into the rotation so a decaying memory reads as
+## half-rotted; deeper layers can opt into the fully-corrupted set. Archetypes are
+## NOT affected by this -- they keep their fixed ARCHETYPE_SKINS skin + tint.
+const SKIN_SETS := {
+	"": PLAIN_SKINS,
+	"protagonists": PLAIN_SKINS,
+	# Heap-style decay: intact echoes intermixed with corrupted (zombie) ones.
+	"corrupted": [SKIN_CRIMINAL, SKIN_ZOMBIE_A, SKIN_SKATER_F, SKIN_ZOMBIE_C],
+	# Fully corrupted -- ready for deeper layers (defined + tested; not yet assigned).
+	"zombies": [SKIN_ZOMBIE_A, SKIN_ZOMBIE_C, SKIN_SURVIVOR_M, SKIN_SURVIVOR_F],
+}
+
+## Archetype -> fixed skin. Keyed by the meta RunDirector stamps on the enemy
+## BEFORE add_child (so it's already present when node_added fires), NOT by colour
+## -- decoupled + robust. The archetype hue still comes through via _archetype_tint.
+const ARCHETYPE_SKINS := {
+	"rusher": SKIN_SKATER_M,    # athletic, aggressive
+	"grenadier": SKIN_CRIMINAL, # bulky / thuggish
+	"sniper": SKIN_SKATER_F,    # lean marksman
+	"elite": SKIN_CYBORG,       # most distinctive -> reads as the boss
+}
+## Checked in priority order (an elite is never also a rusher, but be explicit).
+const ARCHETYPE_KEYS := ["elite", "sniper", "grenadier", "rusher"]
 
 # Stand the imported (tiny) model at the capsule height. Derived once empirically
 # (tools/character_preview.gd measures the world-space deform-bone span and prints
@@ -41,6 +99,7 @@ const TINT_BLEND := 0.6      # how far to pull the skin toward the archetype col
 
 var _anim_lib: AnimationLibrary
 var _ok := false
+var _plain_count := 0   # rotates PLAIN_SKINS deterministically per spawned grunt
 
 
 func _ready() -> void:
@@ -80,7 +139,7 @@ func _apply(enemy: Node) -> void:
 	ap.root_node = ap.get_path_to(model)  # tracks are "Root/Skeleton3D:Bone"
 	ap.add_animation_library("", _anim_lib)
 
-	_skin_model(model, tint)
+	_skin_model(model, tint, _pick_skin(enemy))
 
 	visual.add_child(rig)
 
@@ -102,19 +161,55 @@ func _apply(enemy: Node) -> void:
 		head.visible = false
 
 
-## A skinned StandardMaterial3D (the Kenney skin texture, multiplied toward the
-## archetype colour). Plain enemies keep the untinted skin; archetypes/elites read
-## as their hue without losing the texture detail.
-func _skin_model(model: Node, tint: Color) -> void:
+## A skinned StandardMaterial3D (the chosen Kenney skin texture, multiplied toward
+## the archetype colour). Plain enemies keep the untinted skin; archetypes/elites
+## read as their hue without losing the texture detail.
+func _skin_model(model: Node, tint: Color, skin: Texture2D) -> void:
 	var mi := _find_mesh(model)
 	if mi == null:
 		return
 	var m := StandardMaterial3D.new()
-	m.albedo_texture = SKIN
+	m.albedo_texture = skin if skin != null else SKIN_CRIMINAL
 	m.albedo_color = tint
 	m.roughness = 0.95
 	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
 	mi.material_override = m
+
+
+## Pick this enemy's skin. Archetypes (tagged by RunDirector's meta) get a fixed,
+## recognizable skin regardless of layer; plain grunts rotate the CURRENT LAYER'S
+## pool by spawn order, so a squad reads as several different people AND a corrupted
+## layer mixes in zombies -- all deterministically.
+func _pick_skin(enemy: Node) -> Texture2D:
+	var key := _archetype_key(enemy)
+	if key != "plain":
+		return ARCHETYPE_SKINS[key]
+	var pool := _active_plain_pool()
+	var skin: Texture2D = pool[_plain_count % pool.size()]
+	_plain_count += 1
+	return skin
+
+
+## The plain-grunt pool for the room being built, from the active layer's `skin_set`.
+## ENDLESS / no campaign -> {} profile -> the default protagonists, so bare harnesses
+## are unaffected. Split from _plain_pool_for so the mapping is unit-testable.
+func _active_plain_pool() -> Array:
+	return _plain_pool_for(RunManager.active_layer_profile())
+
+
+func _plain_pool_for(profile: Dictionary) -> Array:
+	var set_name: String = profile.get("skin_set", "")
+	return SKIN_SETS.get(set_name, PLAIN_SKINS)
+
+
+## The archetype this enemy was outfitted as, read from the meta RunDirector stamps
+## before add_child (so it's available at graft time). "plain" if none -- a pure,
+## side-effect-free classification, decoupled from enemy_ai.gd / run_director.gd.
+func _archetype_key(enemy: Node) -> String:
+	for key in ARCHETYPE_KEYS:
+		if enemy.has_meta(key):
+			return key
+	return "plain"
 
 
 ## Read the archetype colour cue off the Body mesh and, if it isn't the plain
