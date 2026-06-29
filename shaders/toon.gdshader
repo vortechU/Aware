@@ -5,10 +5,15 @@ shader_type spatial;
 // darkest band reads as shadow rather than pure black.
 //
 // Driven entirely by uniforms so one shader serves every cel-shaded surface;
-// ToonApplicator sets albedo + emission per mesh at runtime.
+// ToonApplicator sets albedo (+ optional skin texture) + emission per mesh at
+// runtime.
 render_mode cull_back;
 
 uniform vec4 albedo : source_color = vec4(1.0, 1.0, 1.0, 1.0);
+// Optional skin/diffuse map, multiplied by `albedo`. Defaults to white, so a mesh
+// with no texture (every flat-coloured enemy/weapon/pickup/world surface) is shaded
+// exactly as before; a textured rig (the Kenney character) carries its skin through.
+uniform sampler2D albedo_texture : source_color, hint_default_white, filter_nearest;
 uniform int bands : hint_range(1, 5) = 3;
 uniform vec4 rim_color : source_color = vec4(1.0, 1.0, 1.0, 1.0);
 uniform float rim_strength : hint_range(0.0, 1.0) = 0.35;
@@ -17,7 +22,7 @@ uniform vec4 emission_color : source_color = vec4(0.0, 0.0, 0.0, 1.0);
 uniform float emission_energy : hint_range(0.0, 4.0) = 0.0;
 
 void fragment() {
-	ALBEDO = albedo.rgb;
+	ALBEDO = albedo.rgb * texture(albedo_texture, UV).rgb;
 	ROUGHNESS = 1.0;
 	METALLIC = 0.0;
 	EMISSION = emission_color.rgb * emission_energy;

@@ -16,6 +16,8 @@ extends Node
 
 const TOON_SHADER: Shader = preload("res://shaders/toon.gdshader")
 const OUTLINE_SHADER: Shader = preload("res://shaders/toon_outline.gdshader")
+# Scale-compensated outline for the heavily-scaled character rig (see the shader).
+const OUTLINE_SHADER_SCALED: Shader = preload("res://shaders/toon_outline_scaled.gdshader")
 
 # Look tunables, kept in one place so the cel style is editable at a glance.
 const BANDS := 3
@@ -28,25 +30,32 @@ const OUTLINE_COLOR := Color(0.03, 0.02, 0.04)
 const OUTLINE_WIDTH_ENEMY := 0.02
 const OUTLINE_WIDTH_WEAPON := 0.003
 const OUTLINE_WIDTH_PICKUP := 0.012
+# The rigged character: a textured skin reads busier than a flat capsule, so a
+# softer rim, and a world-space-constant ink line (the scaled outline shader
+# compensates for the rig's ~62x cumulative scale).
+const RIM_STRENGTH_CHARACTER := 0.2
+const OUTLINE_WIDTH_CHARACTER := 0.03
 
 # Shared outline passes (constant black hull), reused as next_pass per target.
 var _outline_enemy: ShaderMaterial
 var _outline_weapon: ShaderMaterial
 var _outline_pickup: ShaderMaterial
+var _outline_character: ShaderMaterial
 
 
 func _ready() -> void:
 	_outline_enemy = _make_outline(OUTLINE_WIDTH_ENEMY)
 	_outline_weapon = _make_outline(OUTLINE_WIDTH_WEAPON)
 	_outline_pickup = _make_outline(OUTLINE_WIDTH_PICKUP)
+	_outline_character = _make_outline(OUTLINE_WIDTH_CHARACTER, OUTLINE_SHADER_SCALED)
 	# Catch every enemy / weapon rig that spawns, in any scene, like the other
 	# observers do.
 	get_tree().node_added.connect(_on_node_added)
 
 
-func _make_outline(width: float) -> ShaderMaterial:
+func _make_outline(width: float, shader: Shader = OUTLINE_SHADER) -> ShaderMaterial:
 	var m := ShaderMaterial.new()
-	m.shader = OUTLINE_SHADER
+	m.shader = shader
 	m.set_shader_parameter("outline_width", width)
 	m.set_shader_parameter("outline_color", OUTLINE_COLOR)
 	return m
@@ -154,4 +163,22 @@ func _make_toon_material(src: Material, outline: ShaderMaterial, rim := RIM_STRE
 	mat.set_shader_parameter("emission_color", emission)
 	mat.set_shader_parameter("emission_energy", emission_energy)
 	mat.next_pass = outline
+	return mat
+
+
+## Cel material for a textured, skinned character rig: the toon banding + the rig's
+## own skin texture (multiplied by `tint`, the archetype hue or white) + the
+## scale-compensated ink outline. Called by CharacterApplicator, which owns the rig
+## skin/tint -- this keeps the cel look (shader, bands, rim, outline) in one place.
+func make_character_material(skin: Texture2D, tint: Color) -> ShaderMaterial:
+	var mat := ShaderMaterial.new()
+	mat.shader = TOON_SHADER
+	mat.set_shader_parameter("albedo", tint)
+	mat.set_shader_parameter("albedo_texture", skin)
+	mat.set_shader_parameter("bands", BANDS)
+	mat.set_shader_parameter("rim_strength", RIM_STRENGTH_CHARACTER)
+	mat.set_shader_parameter("rim_width", RIM_WIDTH)
+	mat.set_shader_parameter("emission_color", Color.BLACK)
+	mat.set_shader_parameter("emission_energy", 0.0)
+	mat.next_pass = _outline_character
 	return mat

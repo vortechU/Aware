@@ -83,9 +83,15 @@ Headings in `context_systems.md`:
   `"corrupted"`, which mixes survivors-pack **zombie** skins into the plain rotation so a decayed memory
   reads as half-rotted (the survivors `characterMedium.fbx` is byte-identical to the protagonists' →
   zombie skins drop on the same rig, no new model/anim). Archetypes stay intact (their fixed skin +
-  tint); ENDLESS/un-tagged layers unchanged. `CHARACTER_OK` (#42), all 42 harnesses green. Next: deeper
-  layers can opt into the ready `"zombies"` set; true physics if the FBX scale is fixed. See **Rigged
-  enemy characters** in `context_systems.md`.
+  tint); ENDLESS/un-tagged layers unchanged. **Cel-shaded (done):** the rig now wears the toon
+  material instead of a flat StandardMaterial3D — `_skin_model` builds it via
+  `ToonApplicator.make_character_material(skin, tint)`, so the characters get the same hard-banded
+  cel look + ink outline as the rest of the game. Two earlier blockers solved: `toon.gdshader` gained
+  a back-compat (default-white) `albedo_texture` so the skin survives banding, and a new
+  `toon_outline_scaled.gdshader` divides the outline offset by the model's world scale so the rig's
+  ~62x scale no longer balloons the hull (width `0.03`). `CHARACTER_OK` (#42), all 44 harness scenes
+  green. Next: deeper layers can opt into the ready `"zombies"` set; true physics if the FBX scale is
+  fixed. See **Rigged enemy characters** in `context_systems.md`.
 - **Enemy death: deletion VFX (computer-world)** — instead of a physics ragdoll, a dead enemy is
   DELETED: a glitch-dissolve wipes it out in place. `DeletionVFX` autoload (node_added observer like
   CharacterApplicator) hooks `enemy_died`, **freezes** the just-spawned corpse pieces (cancels the

@@ -536,7 +536,18 @@ autoload plus two shaders do all the work.
     albedo+emission off the active StandardMaterial3D. **Elites work for free**:
     `RunDirector._outfit_elite` sets the crimson/gold emissive override (+1.25x XZ
     scale) *before* `add_child`, so by `node_added` the applicator reads and
-    preserves the glow. Outlined.
+    preserves the glow. Outlined. NOTE: this branch only reaches the *primitive*
+    Body/Head/Gun (the direct `Visual/*` meshes); the rigged Kenney character mesh
+    lives deeper and is cel-shaded by **CharacterApplicator** via the shared builder
+    below (the rig doesn't exist yet when this `node_added` fires).
+  - **Rigged enemy characters** (`make_character_material(skin, tint)`, public) —
+    the same toon shader, but carrying the rig's **skin texture** (the shader's new
+    `albedo_texture`, multiplied by the archetype/elite tint) and a **scale-compensated
+    outline** (`toon_outline_scaled.gdshader`) since the Kenney FBX imports at ~62x.
+    `CharacterApplicator._skin_model` calls this so the cel look (shader, bands, rim,
+    outline) stays owned here while the rig's skin/tint stay owned there. Softer rim
+    (`RIM_STRENGTH_CHARACTER`) + its own width (`OUTLINE_WIDTH_CHARACTER`, world-space
+    constant). See *Rigged enemy characters*.
   - **Player weapon** (`WeaponManager`) — deferred (the viewmodels are built in
     `WeaponManager._ready`, just after node_added fires). Toonifies only each
     weapon-model root's direct body+barrel meshes, leaving the nested MuzzleFlash
@@ -551,10 +562,14 @@ autoload plus two shaders do all the work.
     node's `.material`, guarded by `is_root_shape()`. (Lobby geometry gets cel-shaded
     too, for free.)
 - **Shaders** (`shaders/`) — `toon.gdshader`: a custom `light()` quantizes N·L into
-  3 hard bands (ambient fills the dark side) plus a fresnel rim; `toon_outline.gdshader`:
-  inverted-hull outline (`cull_front`, push along the normal) chained as `next_pass`.
+  3 hard bands (ambient fills the dark side) plus a fresnel rim; `ALBEDO` now also
+  multiplies by an optional `albedo_texture` (default white, so untextured surfaces
+  are unchanged) so the textured character rig carries its skin. `toon_outline.gdshader`:
+  inverted-hull outline (`cull_front`, push along the normal) chained as `next_pass`;
+  `toon_outline_scaled.gdshader`: same hull but the offset is divided by the model's
+  world scale (constant on-screen width on a heavily-scaled mesh) — used only by the rig.
 - **Look tunables** are consts at the top of toon_applicator.gd: `BANDS`, `RIM_*`,
-  `OUTLINE_WIDTH_ENEMY/WEAPON/PICKUP`, `OUTLINE_COLOR`.
+  `OUTLINE_WIDTH_ENEMY/WEAPON/PICKUP/CHARACTER`, `RIM_STRENGTH_CHARACTER`, `OUTLINE_COLOR`.
 - **Rim is curved-objects-only.** The fresnel rim is view-dependent, so on a big flat
   floor it draws a bright ring that *tracks the camera*. World materials are built
   with `rim = 0` to kill it — do not re-enable rim on flat world geometry.
@@ -1045,11 +1060,18 @@ untouched. Assets: `Assets/kenney_animated-characters-protagonists/` (and `-surv
 - **Look constants** (baked, tuned via the preview) — `RIG_SCALE` 0.62 (model is ~2.69 m at
   scale 1 measured from the world-space deform-bone span; → ~1.8 m to match the capsule),
   `RIG_YAW_DEG` 180 (Kenney faces +Z, the enemy faces −Z), `RIG_Y` 0 (model origin = feet =
-  capsule feet). Material is a `StandardMaterial3D` (skin texture × tint, nearest-filtered, matte)
-  — NOT the inverted-hull toon outline, whose local-space width would balloon under the rig's
-  scale. This matches the kitted world (which is also StandardMaterial3D), so the characters fit.
+  capsule feet).
+- **Cel-shaded (the rig wears the toon material).** `_skin_model` builds the rig material via
+  `ToonApplicator.make_character_material(skin, tint)`: the shared `toon.gdshader` (hard bands +
+  rim) carrying the skin **texture** (the shader's `albedo_texture`, nearest-filtered) × the
+  archetype/elite tint, with `toon_outline_scaled.gdshader` chained as the ink outline. So the
+  character matches the cel-shaded world/weapon/pickups instead of reading flat. The *earlier
+  blocker is solved two ways:* the toon shader gained a (default-white, back-compat) texture slot
+  so the skin survives banding, and the outline is **scale-compensated** (offset ÷ model world
+  scale) so the rig's ~62x scale no longer balloons the hull — eyeballed at width `0.03`. (The
+  primitive `Visual/Gun`, still ToonApplicator's, is already cel-shaded; consistent.)
 - **Skin variety (Pass 1)** — one model, swappable skin textures (all Kenney skins share the
-  same UV layout, so a "skin" is just a different `albedo_texture` on the same StandardMaterial3D —
+  same UV layout, so a "skin" is just a different `albedo_texture` on the rig's toon material —
   no extra geometry/anim cost). `CharacterApplicator` now carries a skin registry:
   - **Plain grunts** rotate `PLAIN_SKINS` (criminalMaleA / skaterMaleA / skaterFemaleA /
     cyborgFemaleA) by a per-applicator spawn counter (`_plain_count`) — so a squad reads as several

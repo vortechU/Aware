@@ -94,6 +94,18 @@ func _scene() -> void:
 		var alb := _rig_albedo(rig)
 		_check(alb.is_equal_approx(Color.WHITE), "a plain enemy's rig should be untinted, got %s" % alb)
 
+		# Cel-shaded: the rig wears the toon ShaderMaterial (banding + skin texture)
+		# with the scale-compensated ink outline chained as next_pass.
+		var rmat := _rig_material(rig)
+		_check(rmat is ShaderMaterial, "the rig should wear a toon ShaderMaterial")
+		if rmat is ShaderMaterial:
+			var sm := rmat as ShaderMaterial
+			_check(sm.shader == ToonApplicator.TOON_SHADER, "the rig material should use the toon shader")
+			_check(sm.get_shader_parameter("albedo_texture") != null, "the toon rig should carry its skin texture")
+			var op := sm.next_pass as ShaderMaterial
+			_check(op != null and op.shader == ToonApplicator.OUTLINE_SHADER_SCALED,
+					"the rig should chain the scale-compensated outline")
+
 	# Primitive swap: Body+Head hidden, Gun kept (armed look + gun-drop donor).
 	_check(not (plain.get_node("Visual/Body") as MeshInstance3D).visible, "Body should be hidden")
 	_check(not (plain.get_node("Visual/Head") as MeshInstance3D).visible, "Head should be hidden")
@@ -227,6 +239,8 @@ func _rig_skin(rig: Node) -> Texture2D:
 	var m := mi.material_override
 	if m is StandardMaterial3D:
 		return (m as StandardMaterial3D).albedo_texture
+	if m is ShaderMaterial:
+		return (m as ShaderMaterial).get_shader_parameter("albedo_texture") as Texture2D
 	return null
 
 
@@ -249,7 +263,16 @@ func _rig_albedo(rig: Node) -> Color:
 	var m := mi.material_override
 	if m is StandardMaterial3D:
 		return (m as StandardMaterial3D).albedo_color
+	if m is ShaderMaterial:
+		var a: Variant = (m as ShaderMaterial).get_shader_parameter("albedo")
+		return a if a is Color else Color.BLACK
 	return Color.BLACK
+
+
+## The rig mesh's material, for cel-shading assertions.
+func _rig_material(rig: Node) -> Material:
+	var mi := _find_mesh(rig)
+	return mi.material_override if mi != null else null
 
 
 func _find_mesh(n: Node) -> MeshInstance3D:

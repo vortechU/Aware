@@ -161,19 +161,18 @@ func _apply(enemy: Node) -> void:
 		head.visible = false
 
 
-## A skinned StandardMaterial3D (the chosen Kenney skin texture, multiplied toward
-## the archetype colour). Plain enemies keep the untinted skin; archetypes/elites
-## read as their hue without losing the texture detail.
+## Skin the rig with the cel material: the chosen Kenney skin texture, banded by the
+## toon shader and multiplied toward the archetype colour, plus the scale-compensated
+## ink outline. Built by ToonApplicator (the cel-look owner) so the character matches
+## the cel-shaded world/weapon/pickups; CharacterApplicator just supplies skin + tint.
+## Plain enemies keep the untinted skin; archetypes/elites read as their hue without
+## losing the texture detail.
 func _skin_model(model: Node, tint: Color, skin: Texture2D) -> void:
 	var mi := _find_mesh(model)
 	if mi == null:
 		return
-	var m := StandardMaterial3D.new()
-	m.albedo_texture = skin if skin != null else SKIN_CRIMINAL
-	m.albedo_color = tint
-	m.roughness = 0.95
-	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
-	mi.material_override = m
+	var tex: Texture2D = skin if skin != null else SKIN_CRIMINAL
+	mi.material_override = ToonApplicator.make_character_material(tex, tint)
 
 
 ## Pick this enemy's skin. Archetypes (tagged by RunDirector's meta) get a fixed,

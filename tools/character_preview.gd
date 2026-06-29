@@ -162,6 +162,8 @@ func _skin_of(rig: Node) -> Texture2D:
 	var m := mi.material_override
 	if m is StandardMaterial3D:
 		return (m as StandardMaterial3D).albedo_texture
+	if m is ShaderMaterial:
+		return (m as ShaderMaterial).get_shader_parameter("albedo_texture") as Texture2D
 	return null
 
 
