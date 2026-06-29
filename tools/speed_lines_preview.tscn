@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://tools/speed_lines_preview.gd" id="1"]
+
+[node name="SpeedLinesPreview" type="Node"]
+script = ExtResource("1")

@@ -3,8 +3,9 @@
 [ext_resource type="Script" uid="uid://yx2qkj5bijd1" path="res://scripts/player/player.gd" id="1"]
 [ext_resource type="Script" uid="uid://bybm14pynceb5" path="res://scripts/weapons/weapon_manager.gd" id="2"]
 [ext_resource type="Script" uid="uid://4l464dj18n7i" path="res://scripts/player/player_upgrades.gd" id="3"]
-[ext_resource type="Script" path="res://scripts/player/ability_manager.gd" id="4"]
-[ext_resource type="Script" path="res://scripts/player/hack_manager.gd" id="5"]
+[ext_resource type="Script" uid="uid://hwyd0ft8rn1v" path="res://scripts/player/ability_manager.gd" id="4"]
+[ext_resource type="Script" uid="uid://d130me1rahsur" path="res://scripts/player/hack_manager.gd" id="5"]
+[ext_resource type="Script" uid="uid://df3uoq73kg70d" path="res://scripts/player/speed_lines.gd" id="6"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_player"]
 radius = 0.4
@@ -43,8 +44,11 @@ script = ExtResource("2")
 [node name="PlayerUpgrades" type="Node" parent="." unique_id=519169155]
 script = ExtResource("3")
 
-[node name="AbilityManager" type="Node" parent="."]
+[node name="AbilityManager" type="Node" parent="." unique_id=1139331814]
 script = ExtResource("4")
 
-[node name="HackManager" type="Node" parent="."]
+[node name="HackManager" type="Node" parent="." unique_id=1117729756]
 script = ExtResource("5")
+
+[node name="SpeedLines" type="Node" parent="." unique_id=1048832955]
+script = ExtResource("6")

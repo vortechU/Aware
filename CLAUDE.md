@@ -42,6 +42,15 @@ Headings in `context_systems.md`:
 - **Weapon wall-clip fix** — WeaponClip render-on-top.
 - **Bullet FX: decals + tracers** — BulletFX autoload.
 - **Advanced movement** — wall-run / dash / vault / momentum / double jump (inside player.gd).
+- **Speed-line / wind overlay** — `SpeedLines` (child of Player, sibling of HackManager): a
+  screen-edge radial "wind streak" VFX that fades in when the player moves fast. Build-alongside
+  in code (its own CanvasLayer + full-rect ColorRect with `shaders/speed_lines.gdshader`, no HUD
+  edit, no player.gd edit) — reads the player's public `velocity` from the OUTSIDE and smoothstep-maps
+  horizontal speed → a 0..1 shader `intensity` (faint at a brisk sprint, dramatic at dash / high
+  momentum), temporally smoothed; centre stays clear so the crosshair reads; decays out while the
+  tree is paused / on death. Shows in every run AND the sandbox. `SPEED_LINES_OK` (#44); look
+  eyeballed via `tools/speed_lines_preview.tscn` (non-headless). Tunables = `@export`s on the node
+  (`speed_start`/`speed_full`/rates) + shader uniforms (tint/density/sharpness/edge mask).
 - **Active abilities** — AbilityManager (child of Player): cooldown-only hotkey powers
   unlocked in-run via upgrade cards. P1-P4 done (Stack Smash, RunHUD widget, Overclock,
   2-slot loadout: F + G). Plan: `abilities_plan.md`.

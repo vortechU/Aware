@@ -601,6 +601,23 @@ scripts. On Windows the Godot exe detaches from the console, so use
     side). The EnemyRig crumple still
     runs (orthogonal — it moves bones, this swaps materials + freezes). See **Enemy death: deletion
     VFX** in `context_systems.md`.
+44. `res://tools/speed_lines_test.tscn` — speed-line / wind overlay (screen-edge "wind streaks"
+    when fast) → `SPEED_LINES_OK`. A `SpeedLines` node (`scripts/player/speed_lines.gd`,
+    `class_name SpeedLines`) added to `player.tscn` as a child of Player (sibling of HackManager):
+    build-alongside, the HackManager way — it builds its own CanvasLayer (layer 0, below the HUD)
+    + full-rect ColorRect with `shaders/speed_lines.gdshader` in code (no .tscn HUD edit), reads the
+    player's public `velocity` from the OUTSIDE (no player.gd edit), and smoothstep-maps horizontal
+    speed → a 0..1 shader `intensity` (`compute_target`, `speed_start` 7.5 → `speed_full` 15), then
+    temporally smooths it (rise/fall rates) and forces it off while the tree is paused / on death.
+    The shader draws radial streaks masked to the screen edges/corners (centre clear so the crosshair
+    reads) that "run" inward over TIME; pure additive tint, never samples the screen (no back-buffer /
+    glitch-overlay interaction). Pure: the smoothstep curve (0 below `speed_start`, 1 past `speed_full`,
+    ~0.5 midpoint, monotonic). Scene: the live player.tscn carries a SpeedLines child that built the
+    ColorRect + ShaderMaterial at intensity 0; driving `tick(delta)` with a fast `velocity` eases the
+    `intensity` uniform up (not a one-tick snap) and tracks it, dropping below `speed_start` decays it
+    out, and `is_dead` forces it off even at speed. Shaders don't compile headless, so the LOOK is
+    eyeballed via `tools/speed_lines_preview.tscn` (NON-headless: low/mid/full PNGs). Tunables =
+    node `@export`s + shader uniforms (tint/`line_count`/`line_sharpness`/`edge_start`/`edge_end`).
 
 `--check-only --script` does NOT register autoloads, so scripts referencing
 `GameEvents`/`RunManager` must be checked via the in-engine .tscn harnesses.
