@@ -1047,12 +1047,96 @@ untouched. Assets: `Assets/kenney_animated-characters-protagonists/` (and `-surv
   capsule feet). Material is a `StandardMaterial3D` (skin texture × tint, nearest-filtered, matte)
   — NOT the inverted-hull toon outline, whose local-space width would balloon under the rig's
   scale. This matches the kitted world (which is also StandardMaterial3D), so the characters fit.
-- **Status** — Pass E + weapon-in-hand + death crumple shipped; `CHARACTER_OK` = harness #42, all
-  42 green. Always-on for every enemy in every mode (endless + campaign + sandbox). Next/later:
-  skin VARIETY (per-archetype / per-layer / per-pack skins, survivors+protagonists for "corrupted"
-  enemies); true physics ragdoll IF the FBX 100x import scale is fixed; optionally a toon-shaded
-  character material.
-- **Tools** — `tools/character_preview.tscn` (NON-headless) renders plain + tinted enemies next
-  to a height reference and PRINTS the measured `RIG_SCALE`; `tools/char_probe.tscn`
+- **Skin variety (Pass 1)** — one model, swappable skin textures (all Kenney skins share the
+  same UV layout, so a "skin" is just a different `albedo_texture` on the same StandardMaterial3D —
+  no extra geometry/anim cost). `CharacterApplicator` now carries a skin registry:
+  - **Plain grunts** rotate `PLAIN_SKINS` (criminalMaleA / skaterMaleA / skaterFemaleA /
+    cyborgFemaleA) by a per-applicator spawn counter (`_plain_count`) — so a squad reads as several
+    different people. The pick is **deterministic + stable per enemy**: it's baked into the material
+    once at graft (never re-rolled per frame), and squad spawn order is itself deterministic, so a
+    seeded run reproduces the same faces (the harness relies on this).
+  - **Archetypes** get a fixed, recognizable skin each via `ARCHETYPE_SKINS` (rusher → skaterMaleA,
+    grenadier → criminalMaleA, sniper → skaterFemaleA, elite → cyborgFemaleA), still tinted toward
+    their hue by `_archetype_tint` (so orange/cyan/olive/crimson survive the skin swap). The
+    archetype is read from the **`meta`** RunDirector already stamps before `add_child`
+    (`"elite"/"sniper"/"grenadier"/"rusher"`, checked in `_archetype_key`) — decoupled + robust,
+    NOT colour-matched, and still no `enemy_ai.gd`/`run_director.gd` edit (build-alongside intact).
+  Plain skins overlap with the archetype skins, but the tint carries the archetype read so they
+  still look distinct. (criminalMaleA remains the default/fallback if a skin fails to load.)
+- **Skin variety (Pass 2 — corruption / per-layer)** — deeper/decayed layers swap the plain-grunt
+  pool for one mixing in **zombie** skins, so a corrupted memory reads as half-rotted. Mechanism:
+  - **Cheap path confirmed** — the survivors-pack `characterMedium.fbx` is BYTE-IDENTICAL to the
+    protagonists' (same MD5: same mesh + skeleton + UVs), so a zombie/survivor skin is just another
+    `albedo_texture` on the EXISTING rig — NO new model or anim graft. (Verified by md5sum.)
+  - **`SKIN_SETS`** maps a `skin_set` name → a plain-grunt pool: `""`/`"protagonists"` = the default
+    4; `"corrupted"` = `[criminal, zombieA, skater♀, zombieC]` (a deliberate MIX — half intact, half
+    zombie); `"zombies"` = fully corrupted (zombieA/C + the two survivors), defined + tested + READY
+    for a future deep layer but not yet assigned. Survivors-pack consts: `SKIN_ZOMBIE_A/_C`,
+    `SKIN_SURVIVOR_M/_F`.
+  - **Selection** — `_pick_skin` routes plain grunts through `_active_plain_pool()` =
+    `_plain_pool_for(RunManager.active_layer_profile())`, reading the active layer's `skin_set`
+    (declarative, the SAME pattern as `kit`/palette). ENDLESS / no campaign → `{}` profile → the
+    default protagonists, so every bare harness + endless run is byte-for-byte unchanged. The
+    deterministic spawn-order counter is shared across pools, so the mix is still stable/reproducible.
+  - **Live wiring** — `LayerCatalog`'s Heap profile (corruption 0.5, "decayed organic memory") carries
+    `"skin_set": "corrupted"`; the Stack (0.12, sterile order) omits it → stays clean protagonists, so
+    descending Heap→Stack also swaps the population from rotted to intact.
+  - **Archetypes are NOT corrupted** — they keep their fixed protagonist skin + tint in every layer
+    (a rusher is always recognizably a rusher), per the Pass-1 "special types have their own skin"
+    intent. Corruption only touches plain grunts.
+- **Status** — Pass E + weapon-in-hand + death crumple + **skin variety Pass 1 + Pass 2** shipped;
+  `CHARACTER_OK` = harness #42, all 42 green. Always-on for every enemy in every mode (endless +
+  campaign + sandbox). Next/later: assign the ready `"zombies"` set (and/or new sets) to the deeper
+  layers (Cache/Kernel/I-O) as they ship; true physics ragdoll IF the FBX 100x import scale is fixed;
+  optionally a toon-shaded character material.
+- **Tools** — `tools/character_preview.tscn` (NON-headless) renders a 12-wide row — 4 default plain
+  (the rotation) + 4 archetypes (each fixed skin + tint) + 4 CORRUPTED grunts (spawned under a forced
+  CAMPAIGN-Heap context so the live `active_layer_profile()` read is exercised) — next to a height
+  reference, PRINTS the measured `RIG_SCALE` AND the skin each enemy received
+  (`CHAR_SKIN <slot> -> <path>`), and saves `tools/character_preview.png`; `tools/char_probe.tscn`
   (non-asserting) dumps the imported FBX tree / bone names / anim clips. Covered by
-  `tools/character_test.tscn` (`CHARACTER_OK`).
+  `tools/character_test.tscn` (`CHARACTER_OK`): Pass-1 variety (plain set distinct, two grunts differ,
+  a meta-tagged archetype wears its fixed skin) + Pass-2 corruption (pure pool mapping incl. unknown→
+  fallback; a live CAMPAIGN-Heap context makes grunts include a zombie skin while an archetype keeps
+  its protagonist skin; RunManager state snapshot+restored).
+
+
+## Enemy death: deletion VFX (added)
+
+This is a computer world, so a dead enemy is **DELETED** — glitch-dissolved out of existence —
+rather than physically ragdolling. Same lowest-risk recipe as the kit/characters work:
+**VISUAL-ONLY + BUILD-ALONGSIDE**, layered over the existing death without touching `enemy_ai.gd`.
+
+- **`DeletionVFX`** (`autoloads/deletion_vfx.gd`) — a sibling of ToonApplicator / CharacterApplicator
+  in the same `get_tree().node_added` observer mould: when an `EnemyAI` enters, it connects to that
+  enemy's `enemy_died` signal. Robust no-op if disabled.
+- **The zero-edit trick** — `enemy_ai._die()` already spawns the physics corpse (group `enemy_corpse`),
+  reparents the `Visual` onto it, applies the launch impulse + drops the gun / pops the head, and emits
+  `enemy_died` RIGHT AFTER — synchronously, the SAME frame, BEFORE the next physics step. So on
+  `enemy_died` the observer sets `freeze = true` on the just-spawned corpse pieces (gathered by
+  proximity to the death point — the body + dropped gun + popped head all spawn at the enemy's
+  transform that frame). Freezing before the physics step means the queued impulse never integrates →
+  the body stays put ("vanish in place"), with NO `enemy_ai.gd` change.
+- **The dissolve** — each frozen piece's visible meshes are swapped to a `ShaderMaterial` using
+  `shaders/deletion_dissolve.gdshader`, carrying over that mesh's own albedo (texture + colour read off
+  its StandardMaterial3D skin or toon `albedo` uniform) so it dissolves AS the enemy. The shader is a
+  blocky cell-noise dissolve (`dissolve` 0→1 discards cells in little digital squares), with a hot
+  spectral-green emissive edge on the freshly-deleted cells + an RGB-split, scanline flicker, and a
+  per-vertex jitter that grows with the dissolve — reads as a corrupted process being wiped. A glowing
+  data-bit `CPUParticles3D` burst flies off the body. One tween drives the shared `dissolve` up over
+  `DISSOLVE_TIME` (~0.55 s), then frees all the pieces.
+- **Substrate, not replacement** — the ragdoll PHYSICS is left intact underneath; `DeletionVFX.enabled`
+  (default TRUE, every mode) just freezes + dissolves it. So the original launch/gun-drop/head-pop code
+  still exists and is still tested: the ragdoll-physics harnesses (`ragdoll_smoke`, `ragdoll_polish`)
+  set `DeletionVFX.enabled = false` to assert the raw physics; `run_smoke` needs no change (its
+  corpse-cleared assert is after the room transition, which freezing doesn't block). Every other
+  enemy-killing harness stays green with the VFX on, because the death PATH is unchanged — only the
+  post-death visual differs.
+- **Plays nice with the rig** — the `EnemyRig` crumple (which also hooks `enemy_died`) is orthogonal:
+  it moves bones while this swaps materials + freezes, so the body slumps a touch AS it's deleted,
+  still in place. The kept gun is dropped by `_drop_gun` then frozen + dissolved with everything else.
+- **Status** — shipped; `DELETION_VFX_OK` = harness #43, all 43 green. Look eyeballed via
+  `tools/deletion_preview.tscn` (NON-headless: intact / early / mid PNGs) — a violent spiky
+  green shard-burst + data bits. (The spiky read comes from the vertex jitter `0.03` in the shader's
+  `vertex()`; dial it down for a calmer fade.) Future: per-layer dissolve colours (tie `edge_color` to
+  the layer palette), an SFX hook on the burst.

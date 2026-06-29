@@ -15,6 +15,10 @@ var fails: Array[String] = []
 
 
 func _ready() -> void:
+	# Exercises the ragdoll PHYSICS substrate (per-shot launch dir, head-pop, gun-drop),
+	# so turn off the deletion-VFX layer that would freeze + dissolve the corpse.
+	DeletionVFX.enabled = false
+
 	var floor := StaticBody3D.new()
 	floor.collision_layer = 1
 	var cs := CollisionShape3D.new()

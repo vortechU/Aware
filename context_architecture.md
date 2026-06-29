@@ -79,7 +79,12 @@ disconnects) rather than editing the original FPS code.
   **headshot pops the head off** as its own rigid body, and the **gun always drops**
   as a separate tumbling piece (both join the `enemy_corpse` group). RunDirector
   clears the group on room transition. Covered by `tools/ragdoll_smoke_test.tscn` +
-  `tools/ragdoll_polish_smoke_test.tscn` + `tools/ragdoll_preview.tscn`.
+  `tools/ragdoll_polish_smoke_test.tscn` + `tools/ragdoll_preview.tscn`. **Deletion VFX
+  (on by default):** in real play this ragdoll is the SUBSTRATE for a computer-world
+  "deletion" look — the `DeletionVFX` autoload hooks `enemy_died`, freezes the corpse
+  pieces (cancelling the launch impulse → vanish in place) and glitch-dissolves them out
+  (`enemy_ai.gd` untouched). The two ragdoll harnesses set `DeletionVFX.enabled = false` to
+  test the raw physics; see *Enemy death: deletion VFX* in `context_systems.md`.
   **Archetype hooks:**
   off-by-default `is_sniper` / `is_grenadier` flags swap the ATTACK state for a
   charged telegraphed long-range shot (`_sniper_attack`) or an arcing-grenade lob
@@ -555,7 +560,44 @@ scripts. On Windows the Godot exe detaches from the console, so use
     death crumple via `tools/char_ragdoll_preview.tscn` (kills an enemy, tracks the corpse,
     screenshots the fall + landing) -- both NON-headless. `tools/char_probe.tscn` is a
     non-asserting diagnostic that dumps the imported FBX tree / bone names / anim clips / node
-    scales (it surfaced the 100x Root scale). See **Rigged enemy characters** in `context_systems.md`.
+    scales (it surfaced the 100x Root scale). **Skin variety (Pass 1)** is folded into the same
+    harness: pure — `PLAIN_SKINS` are ≥3 + all distinct, each `ARCHETYPE_KEYS` maps to a skin;
+    scene — two plain grunts spawned back-to-back rotate to DIFFERENT skins (deterministic by spawn
+    order), and an enemy stamped with an archetype `meta` (e.g. `set_meta("sniper")`, as RunDirector
+    does before add_child) wears that archetype's fixed skin (`ARCHETYPE_SKINS["sniper"]`).
+    **Skin variety Pass 2 (corruption / per-layer)** is also folded in: pure — `_plain_pool_for({})`
+    is the default protagonists, `_plain_pool_for({"skin_set":"corrupted"})` swaps in a survivors-pack
+    zombie skin, an unknown set falls back to the default; scene — driving the live `RunManager` into a
+    CAMPAIGN Heap room (which carries `"skin_set":"corrupted"`) makes a pool's worth of plain grunts
+    include a zombie skin while a meta-tagged archetype KEEPS its protagonist skin (special types
+    aren't corrupted); RunManager run_mode/current_room are snapshot + restored so the shared-process
+    harnesses downstream stay valid. (Cheap path: the survivors `characterMedium.fbx` is byte-identical
+    to the protagonists' — same UVs — so zombie skins reuse the existing rig, no new model/anim graft.)
+    The preview renders a 12-wide row (4 plain + 4 archetype + 4 corrupted, the corrupted four under a
+    forced Heap context) and prints `CHAR_SKIN <slot> -> <path>`.
+    See **Rigged enemy characters** in `context_systems.md`.
+43. `res://tools/deletion_vfx_test.tscn` — enemy death "deletion" VFX (computer-world glitch
+    vanish instead of a ragdoll) → `DELETION_VFX_OK`. A new autoload `DeletionVFX`
+    (`autoloads/deletion_vfx.gd`), a sibling of CharacterApplicator in the node_added-observer
+    mould, hooks each enemy's `enemy_died`. enemy_ai's `_die` still spawns the physics corpse +
+    drops the gun and emits `enemy_died` synchronously, SAME frame, BEFORE the next physics step —
+    so the observer sets `freeze = true` on the just-spawned corpse pieces (gathered by proximity to
+    the death point), cancelling the queued launch impulse → the body stays put (vanish in place),
+    with ZERO `enemy_ai.gd` edits. It swaps the pieces' visible meshes to
+    `shaders/deletion_dissolve.gdshader` (a blocky cell-noise dissolve + hot spectral-green emissive
+    edge + RGB-split / scanline / per-vertex jitter, carrying over each mesh's own albedo
+    texture+colour), spawns a glowing data-bit `CPUParticles3D` burst, tweens the shared `dissolve`
+    0→1 over ~0.55 s, then frees the pieces. The ragdoll PHYSICS is the substrate, not removed:
+    `DeletionVFX.enabled` (default TRUE, on every mode) just layers the visual, so `ragdoll_smoke` +
+    `ragdoll_polish` set it FALSE to keep testing the launch/gun-drop (run_smoke's corpse-cleared
+    assert is post-transition, which freeze doesn't block — no change needed). Pure: the autoload +
+    dissolve shader load and it's enabled by default. Scene: a real kill freezes the corpse (no
+    horizontal flight over 18 frames), swaps its meshes to the dissolve shader (starting at 0), the
+    dissolve advances over time, and the pieces free themselves once it completes. Shaders don't
+    compile headless, so the LOOK (spiky green shard-burst + data bits) is eyeballed via
+    `tools/deletion_preview.tscn` (NON-headless: intact/early/mid PNGs). The EnemyRig crumple still
+    runs (orthogonal — it moves bones, this swaps materials + freezes). See **Enemy death: deletion
+    VFX** in `context_systems.md`.
 
 `--check-only --script` does NOT register autoloads, so scripts referencing
 `GameEvents`/`RunManager` must be checked via the in-engine .tscn harnesses.

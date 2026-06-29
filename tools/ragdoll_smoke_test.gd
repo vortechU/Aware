@@ -28,6 +28,10 @@ func _check(cond: bool, label: String) -> void:
 
 
 func _run() -> void:
+	# This test exercises the ragdoll PHYSICS substrate (launch + gun-drop), so turn
+	# off the deletion-VFX layer that would otherwise freeze + dissolve the corpse.
+	DeletionVFX.enabled = false
+
 	# A static floor on the world layer so the corpse has something to land on.
 	var floor_body := StaticBody3D.new()
 	floor_body.collision_layer = 1

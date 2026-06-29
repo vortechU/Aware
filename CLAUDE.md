@@ -74,8 +74,29 @@ Headings in `context_systems.md`:
   spine curl / knees buckle / arms drop) over the existing corpse tumble. True per-limb physics is
   blocked by the FBX's 100x `Root` import scale (sub-mm physics shapes → Jolt explodes, even the
   editor's own ragdoll); the crumple is the pose-only, scale-proof stand-in. Always-on, every mode.
-  `CHARACTER_OK` (#42), all 42 harnesses green. Next: skin variety; true physics if the FBX scale
-  is fixed. See **Rigged enemy characters** in `context_systems.md`.
+  **Skin variety (Pass 1+2, done):** one model, swappable skin textures. Pass 1 — plain grunts rotate
+  the protagonist set (criminal/skater♂/skater♀/cyborg) deterministically by spawn order, and each
+  archetype reads its own fixed skin (rusher=skater♂, grenadier=criminal, sniper=skater♀,
+  elite=cyborg), keyed by the `meta` RunDirector already stamps (decoupled, no enemy_ai/run_director
+  edit) and still tinted toward its archetype hue. Pass 2 — **per-layer corruption**: the layer profile
+  carries a `skin_set` key (declarative, like `kit`/palette); the Heap (corruption 0.5) sets
+  `"corrupted"`, which mixes survivors-pack **zombie** skins into the plain rotation so a decayed memory
+  reads as half-rotted (the survivors `characterMedium.fbx` is byte-identical to the protagonists' →
+  zombie skins drop on the same rig, no new model/anim). Archetypes stay intact (their fixed skin +
+  tint); ENDLESS/un-tagged layers unchanged. `CHARACTER_OK` (#42), all 42 harnesses green. Next: deeper
+  layers can opt into the ready `"zombies"` set; true physics if the FBX scale is fixed. See **Rigged
+  enemy characters** in `context_systems.md`.
+- **Enemy death: deletion VFX (computer-world)** — instead of a physics ragdoll, a dead enemy is
+  DELETED: a glitch-dissolve wipes it out in place. `DeletionVFX` autoload (node_added observer like
+  CharacterApplicator) hooks `enemy_died`, **freezes** the just-spawned corpse pieces (cancels the
+  launch impulse before physics integrates → vanish in place, ZERO `enemy_ai.gd` edits), swaps their
+  meshes to `shaders/deletion_dissolve.gdshader` (blocky cell dissolve + hot spectral-green emissive
+  edge + RGB-split / scanline / vertex jitter, carrying over each enemy's own albedo), spawns a glowing
+  data-bit burst, tweens the dissolve out (~0.55 s) and frees them. The ragdoll PHYSICS stays as the
+  substrate — `DeletionVFX.enabled` (default ON, every mode) just layers the visual; the ragdoll
+  harnesses toggle it OFF to keep testing the launch/gun-drop. The EnemyRig crumple still runs
+  (orthogonal). `DELETION_VFX_OK` (#43), all 43 harnesses green; look eyeballed via
+  `tools/deletion_preview.tscn`. See **Enemy death: deletion VFX** in `context_systems.md`.
 - **Developer tools** — DevTools autoload, debug-build cheats (F1 god / F2 kill all / F3 refill / F5-F6 room jump / F7 layer jump). Plus a **Sandbox** test map (main-menu **TEST MAP** → `scenes/ui/sandbox.tscn`): a kitted free-play arena (every hack adjective unlocked + both abilities granted, hackable cubes over dummies) for trying new mechanics outside the run flow.
 - **Current state** — running changelog of everything shipped so far.
 
