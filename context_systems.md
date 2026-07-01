@@ -583,6 +583,98 @@ autoload plus two shaders do all the work.
 
 ---
 
+## Real weapon meshes (GLB) (added)
+
+The three weapons ship with real textured 3D models instead of the procedural
+box+barrel placeholder: **ice_gun** → Pistol, **SPAS** → Shotgun, **full-auto
+sci-fi rifle** → Rifle (all `Assets/*.glb`, Sketchfab rips). Build-alongside: no
+new systems, just data on `WeaponData` + a rewritten `_build_weapon_model`.
+
+- **WeaponData** gained a presentation block: `model_scene` (a `PackedScene`, the
+  GLB), `model_fix_rotation_deg`, `model_roll_deg`, `model_target_length`,
+  `model_offset`, `muzzle_offset`. When `model_scene` is set, WeaponManager
+  instances it as a child "Model" node instead of building the box+barrel; when
+  null it still builds the placeholder (so a future un-modelled weapon still works).
+- **Runtime auto-fit** (`WeaponManager._build_weapon_model`): these exports arrive
+  at wildly inconsistent import scale/orientation/pivot (Sketchfab's Y-up fixup
+  stacked with an fbx2gltf Z-up fixup, plus a leftover authored tilt, plus a 100x
+  or 0.01x root scale). Rather than hand-tune per asset, the builder: (1) finds the
+  biggest MeshInstance3D (ignoring small glass/light sub-meshes); (2) cancels the
+  WHOLE import chain's rotation+scale via that mesh's basis inverse — **measured
+  relative to the model node** (`model.global_transform.affine_inverse() *
+  main_mesh.global_transform`), NOT the mesh's raw global basis, so the camera's
+  aim when weapons are built at spawn can't bake a tilt in; (3) applies the small
+  hand-authored fix (`model_fix_rotation_deg` swings the native forward axis onto
+  −Z, `model_roll_deg` flips an upside-down grip); (4) auto-scales to
+  `model_target_length` (longest bbox axis) and recentres on the bbox centroid.
+  **GOTCHA — never store the combined correction as one baked
+  Euler+scale:** the first cut precomputed `model_rotation_deg`/`model_scale` in a
+  fit tool and set them via `.rotation_degrees` then `.scale`. Setting those two
+  property-setters back-to-back decomposes/rebuilds the basis and does NOT cleanly
+  reproduce the correction when the source chain has non-uniform/near-gimbal-lock
+  content (the rifle's −90° pitch) — it silently dropped the scale-cancellation,
+  leaving the gun ~100x too big off-screen. Assign a raw `Basis` (rotation `*`
+  scalar) directly instead, and keep the stored fields as *simple authored*
+  rotations only.
+- **Cel-shading + the "gun renders solid white" bug.** ToonApplicator cel-shades
+  the viewmodel; two fixes let a textured GLB survive it (both in
+  `_make_toon_material`, guarded on "source has an `albedo_texture`" = a detailed
+  ripped model, vs a flat-coloured enemy/pickup/world primitive):
+  1. **Carry the texture through** — the toon material now copies the source's
+     `albedo_texture` into the shader (both `toon.gdshader` and
+     `toon_viewmodel.gdshader` gained the `albedo_texture` uniform, defaulting
+     white so flat surfaces are unchanged).
+  2. **Skip the emission carry-over for textured meshes** — the ice_gun's embedded
+     material ships `emission_enabled = true`, `emission = (1,1,1)`, energy 1 (a
+     Sketchfab "fullbright" default, not a real glow). Faithfully carried into
+     `EMISSION` it floods the whole gun **solid white**. Flat sources keep their
+     emission (elite crimson/gold glow, pickup glow); textured detailed models drop
+     it. This was the actual cause of the white-gun symptom — verified by an A/B/C
+     isolation harness (minimal / +rim+emission / +outline).
+  3. **Skip the inverted-hull outline for textured meshes** — the flat-primitive
+     outline (`toon_outline.gdshader`, fixed local-space offset) draws its expanded
+     back-face hull OVER a detailed thin-walled ripped mesh instead of just at the
+     silhouette, flooding it with ink; the cel banding alone reads fine on a
+     textured surface. (The rigged character, also textured, uses its own
+     scale-compensated outline via `make_character_material`, a separate path, so
+     it's unaffected.)
+- **"Some materials look transparent" = backface culling, not alpha.** The toon
+  shaders are opaque (they never write `ALPHA`), so alpha blending can't be the
+  cause. A material dump proved EVERY source GLB material is `cull = DISABLED`
+  (double-sided) — ripped Sketchfab meshes are thin single-sided shells with
+  inconsistent winding, and `cull_back` culls their back faces so you see *through*
+  the gun (with the viewmodel's `depth_test_disabled`, the hole shows the already-
+  drawn world behind). FIX: `toon_viewmodel.gdshader` (weapon-only — WeaponClip
+  swaps every weapon mesh onto it) renders `cull_disabled`, and its `fragment()`
+  flips `NORMAL` on `!FRONT_FACING` so the newly-visible inner faces cel-shade as a
+  lit surface instead of a black hole. `toon.gdshader` stays `cull_back` (shared
+  with enemies/world, where single-sided is correct + cheaper). The pistol's genuine
+  glass parts (albedo alpha 0.22/0.25) just render solid under the opaque toon shader
+  — fine; the complaint was see-through, not that glass looked glassy.
+- **Orientation is `model_fix_rotation_deg` + `model_roll_deg`, judged from a SIDE
+  view.** A first-person corner view HID that the SPAS imported **rolled 90° about
+  its barrel** (muzzle pointed −Z correctly, but the pistol grip stuck out sideways
+  instead of hanging down). Caught by rendering clean side/top views *in the weapon
+  manager's own frame* (camera on +X looking −X, up +Y → a correct gun reads muzzle
+  screen-RIGHT/−Z, grip screen-DOWN/−Y; a correct gun's top-down view is a thin
+  sliver, a rolled one shows its full side profile). FIX: Shotgun `model_roll_deg =
+  -90` (Pistol grip-down + Rifle were already correct). **The sign matters and the
+  side view's grip-up/grip-down is easy to misread** — `+90` lands the gun
+  upside-down; the reliable tell is the pistol grip hanging screen-DOWN, matching the
+  rifle's known-good grip, NOT a first-person eyeball.
+- **Muzzle flash / tracer origin** now sits at `muzzle_offset` (roughly the barrel
+  tip, ~−`target_length`/2 on Z) instead of a length-derived guess.
+- **Covered by** `tools/weapon_clip_smoke_test.tscn` (`WEAPON_CLIP_SMOKE_OK`,
+  extended: walks the now-nested mesh tree, only asserts the outline `next_pass`
+  on UNtextured meshes). The look is eyeballed via `tools/weapon_preview.tscn`
+  (NON-headless: cycles all 3 guns and saves TWO PNGs each — `_weapon_preview_<name>`
+  the true first-person view over a bright magenta background so culling holes
+  scream, and `_weapon_side_<name>` a clean side profile in the manager's frame that
+  reveals roll/pitch). Next: tune first-person framing / grip position
+  (`model_offset`) per weapon to taste; per-weapon muzzle heights.
+
+---
+
 ## Weapon wall-clip fix (added)
 
 Stops the first-person weapon viewmodel from poking through walls / crates /

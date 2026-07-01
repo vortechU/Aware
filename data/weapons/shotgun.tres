@@ -1,6 +1,7 @@
-[gd_resource type="Resource" script_class="WeaponData" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="WeaponData" format=3 uid="uid://dmq87hvhgbwbs"]
 
-[ext_resource type="Script" path="res://scripts/weapons/weapon_data.gd" id="1"]
+[ext_resource type="Script" uid="uid://bkyupbqka4ci1" path="res://scripts/weapons/weapon_data.gd" id="1"]
+[ext_resource type="PackedScene" uid="uid://bsx45o6mfvbmi" path="res://Assets/spas_shotgun.glb" id="2"]
 
 [resource]
 script = ExtResource("1")
@@ -25,3 +26,9 @@ ads_time = 0.16
 model_color = Color(0.32, 0.22, 0.14, 1)
 model_length = 0.68
 sound_radius = 40.0
+model_scene = ExtResource("2")
+model_fix_rotation_deg = Vector3(0, -90, 0)
+model_roll_deg = -90.0
+model_target_length = 0.85
+model_offset = Vector3(0, 0.055, 0)
+muzzle_offset = Vector3(0, 0, -0.46)

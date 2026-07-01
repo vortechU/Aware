@@ -4,3 +4,7 @@
 
 # Throwaway tool run logs (Start-Process stdout/stderr redirects)
 tools/_*.txt
+
+# Throwaway preview renders (regenerated on demand by tools/*_preview.tscn)
+tools/_*.png
+tools/_*.png.import

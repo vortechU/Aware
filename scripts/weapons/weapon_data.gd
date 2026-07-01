@@ -33,3 +33,24 @@ extends Resource
 @export var model_color: Color = Color(0.25, 0.25, 0.28)
 @export var model_length: float = 0.5
 @export var sound_radius: float = 30.0
+## Real mesh (Kenney/Sketchfab GLB etc). When set, WeaponManager instances this
+## instead of building the procedural box+barrel placeholder. Source assets come
+## in at arbitrary import scale/orientation/pivot (baked Sketchfab/fbx2gltf fixup
+## chains), so WeaponManager auto-fits at runtime: it finds the biggest mesh,
+## cancels the WHOLE import chain's rotation+scale via that mesh's own
+## global_transform.basis.inverse(), then applies the small hand-derived fields
+## below on top, then auto-scales to model_target_length and auto-recenters.
+## IMPORTANT: model_fix_rotation_deg/model_roll_deg must stay simple, directly-
+## authored rotations (not reconstructed from another Basis) -- decomposing the
+## auto-cancelled import chain's Basis to Euler and back is LOSSY (it silently
+## drops the exact scale-cancellation, leaving the asset ~100x too big) whenever
+## that chain isn't a perfectly uniform-scale, non-shearing rotation, which these
+## Sketchfab exports aren't guaranteed to be. See tools/weapon_fit_probe.gd (the
+## analysis tool that derived these per-asset) for the full story.
+@export var model_scene: PackedScene
+@export var model_fix_rotation_deg: Vector3 = Vector3.ZERO
+@export var model_roll_deg: float = 0.0
+@export var model_target_length: float = 0.5
+@export var model_offset: Vector3 = Vector3.ZERO
+## Muzzle flash + tracer-origin position, local to the weapon model root.
+@export var muzzle_offset: Vector3 = Vector3(0.0, 0.045, -0.4)

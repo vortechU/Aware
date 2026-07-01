@@ -44,19 +44,28 @@ func _on_node_added(node: Node) -> void:
 func _adopt(wm: Node) -> void:
 	if not is_instance_valid(wm):
 		return
-	# Each direct child of the manager is a weapon model root. Its body + barrel
-	# are direct MeshInstance3D children; the muzzle flash lives one level deeper
-	# under a "MuzzleFlash" node.
+	# Each direct child of the manager is a weapon model root. Real weapon meshes
+	# nest their MeshInstance3D children arbitrarily deep under a "Model" node
+	# (unlike the old flat procedural box+barrel), so this walks the whole
+	# subtree -- except "MuzzleFlash", handled separately (it keeps its own
+	# unshaded billboard material, just with depth testing disabled).
 	for model in wm.get_children():
 		if not (model is Node3D):
 			continue
 		for child in (model as Node3D).get_children():
-			if child is MeshInstance3D:
-				_render_on_top(child as MeshInstance3D)
-			elif child.name == "MuzzleFlash":
+			if child.name == "MuzzleFlash":
 				for sub in child.get_children():
 					if sub is MeshInstance3D:
 						_disable_depth_test(sub as MeshInstance3D)
+			else:
+				_adopt_mesh_tree(child)
+
+
+func _adopt_mesh_tree(node: Node) -> void:
+	if node is MeshInstance3D:
+		_render_on_top(node as MeshInstance3D)
+	for child in node.get_children():
+		_adopt_mesh_tree(child)
 
 
 ## Body / barrel: swap the cel fill shader for its depth-test-disabled twin, or

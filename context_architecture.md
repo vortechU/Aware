@@ -62,7 +62,19 @@ disconnects) rather than editing the original FPS code.
 - **WeaponManager** (`scripts/weapons/weapon_manager.gd`, `class_name
   WeaponManager`) — under the player camera. 3 weapons from preloaded
   `WeaponData` .tres (`data/weapons/`), hitscan firing, recoil, ADS, rig
-  animation. Reads exported stats off the WeaponData resources.
+  animation. Reads exported stats off the WeaponData resources. **Real weapon
+  meshes:** each WeaponData can carry a `model_scene` (a GLB) that replaces the
+  procedural box+barrel viewmodel; the three shipped guns are the **ice_gun**
+  (Pistol), **SPAS** (Shotgun) and a **full-auto sci-fi rifle** (Rifle) from
+  `Assets/*.glb`. Sketchfab/fbx2gltf exports arrive at arbitrary import
+  scale/orientation/pivot, so `_build_weapon_model` **auto-fits at runtime**:
+  finds the biggest mesh, cancels the whole import chain's rotation+scale via that
+  mesh's basis (measured relative to the model node, so the camera's aim at build
+  time can't bake in a tilt), applies the small hand-authored fix
+  (`model_fix_rotation_deg` + `model_roll_deg`) that points the muzzle at −Z, then
+  auto-scales to `model_target_length` and recentres on the bbox. Cel-shaded by
+  ToonApplicator (its texture carries through); see **Real weapon meshes (GLB)**
+  in `context_systems.md`.
 - **EnemyAI** (`scripts/enemies/enemy_ai.gd`, `class_name EnemyAI`,
   CharacterBody3D) — state machine PATROL/ALERT/CHASE/ATTACK/SEARCH/COVER/FLANK/
   DEAD. NavigationAgent3D pathing, vision-cone + hearing senses. `enemy_died`

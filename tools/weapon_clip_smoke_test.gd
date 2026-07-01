@@ -73,21 +73,40 @@ func _run() -> void:
 	var body_meshes := 0
 	var flash_meshes := 0
 	for child in model.get_children():
-		if child is MeshInstance3D:
-			body_meshes += 1
-			var m := child as MeshInstance3D
-			_check(_renders_on_top(m), "body/barrel mesh '%s' does not render on top" % m.name)
-			# Cel path keeps the outline silhouette as next_pass.
-			if m.material_override is ShaderMaterial:
-				_check((m.material_override as ShaderMaterial).next_pass != null,
-						"cel viewmodel lost its outline next_pass")
-		elif child.name == "MuzzleFlash":
+		if child.name == "MuzzleFlash":
 			for sub in child.get_children():
 				if sub is MeshInstance3D:
 					flash_meshes += 1
 					var fm := (sub as MeshInstance3D).material_override
 					_check(fm is StandardMaterial3D and (fm as StandardMaterial3D).no_depth_test,
 							"muzzle flash does not render on top")
+		else:
+			body_meshes += _check_mesh_tree(child)
 
-	_check(body_meshes >= 2, "expected body + barrel meshes, found %d" % body_meshes)
+	# Real weapon meshes (Kenney/Sketchfab GLBs) nest an arbitrary number of
+	# MeshInstance3D nodes under "Model", unlike the old flat box+barrel -- so
+	# this only asserts "at least one", not a fixed count.
+	_check(body_meshes >= 1, "expected at least one body mesh, found %d" % body_meshes)
 	_check(flash_meshes >= 1, "expected a muzzle flash mesh, found %d" % flash_meshes)
+
+
+## Recursively checks every MeshInstance3D under `node` (the real weapon meshes
+## nest arbitrarily deep), returning how many were found.
+func _check_mesh_tree(node: Node) -> int:
+	var count := 0
+	if node is MeshInstance3D:
+		count += 1
+		var m := node as MeshInstance3D
+		_check(_renders_on_top(m), "body mesh '%s' does not render on top" % m.name)
+		# NOTE: the inverted-hull outline (next_pass) is deliberately DROPPED for
+		# TEXTURED weapon meshes -- ToonApplicator skips it because the flat-primitive
+		# hull floods a detailed ripped GLB with ink (see _make_toon_material). So the
+		# outline is only asserted for UNtextured (flat, procedural-primitive) meshes.
+		if m.material_override is ShaderMaterial:
+			var sm := m.material_override as ShaderMaterial
+			var tex: Variant = sm.get_shader_parameter("albedo_texture")
+			if tex == null:
+				_check(sm.next_pass != null, "flat cel viewmodel lost its outline next_pass")
+	for child in node.get_children():
+		count += _check_mesh_tree(child)
+	return count

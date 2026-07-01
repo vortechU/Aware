@@ -91,14 +91,23 @@ func _toonify_enemy(enemy: Node) -> void:
 func _toonify_weapon(wm: Node) -> void:
 	if not is_instance_valid(wm):
 		return
-	# Each direct child of the manager is a weapon model root; its body + barrel
-	# are direct MeshInstance3D children. The muzzle flash lives one level deeper
-	# under a "MuzzleFlash" node, so only touching the root's direct mesh children
-	# leaves the flash as the unshaded emissive billboard it needs to stay.
+	# Each direct child of the manager is a weapon model root. Real weapon meshes
+	# (Kenney/Sketchfab GLBs) nest their MeshInstance3D children arbitrarily deep
+	# under a "Model" node, unlike the old flat procedural box+barrel, so this
+	# walks the whole subtree -- except "MuzzleFlash", which must stay the
+	# unshaded emissive billboard it is.
 	for model in wm.get_children():
 		for child in model.get_children():
-			if child is MeshInstance3D:
-				_toonify_mesh(child, _outline_weapon)
+			if child.name == "MuzzleFlash":
+				continue
+			_toonify_weapon_mesh_tree(child)
+
+
+func _toonify_weapon_mesh_tree(node: Node) -> void:
+	if node is MeshInstance3D:
+		_toonify_mesh(node as MeshInstance3D, _outline_weapon)
+	for child in node.get_children():
+		_toonify_weapon_mesh_tree(child)
 
 
 func _toonify_pickup(p: Node) -> void:
@@ -142,27 +151,52 @@ func _toonify_static_body(body: Node) -> void:
 
 
 ## Build a toon ShaderMaterial from a source StandardMaterial3D (may be null),
-## carrying its albedo + emission. `outline` chains as next_pass, or null for none.
+## carrying its albedo (+ texture + emission). `outline` chains as next_pass, or
+## null for none. A TEXTURED source is treated as a detailed ripped GLB model (the
+## real weapon meshes) and gets neither the emission carry-over nor the outline --
+## see the two comments below; a flat-coloured source (enemies / pickups / world)
+## keeps both.
 func _make_toon_material(src: Material, outline: ShaderMaterial, rim := RIM_STRENGTH) -> ShaderMaterial:
 	var albedo := Color.WHITE
 	var emission := Color.BLACK
 	var emission_energy := 0.0
+	var texture: Texture2D = null
 	if src is StandardMaterial3D:
 		var std := src as StandardMaterial3D
 		albedo = std.albedo_color
-		if std.emission_enabled:
+		texture = std.albedo_texture
+		# Only carry emission for FLAT-coloured sources. The intentional glow lives
+		# there -- elite enemies (RunDirector's crimson/gold emissive override) and
+		# pickups. Detailed GLB weapon materials, by contrast, routinely ship with a
+		# full-white emission = (1,1,1) energy 1 (a Sketchfab "fullbright" default,
+		# not a real glow), which -- carried into EMISSION -- floods the whole gun
+		# solid white. Textured == exactly those models, so drop it there.
+		if std.emission_enabled and texture == null:
 			emission = std.emission
 			emission_energy = std.emission_energy_multiplier
 
 	var mat := ShaderMaterial.new()
 	mat.shader = TOON_SHADER
 	mat.set_shader_parameter("albedo", albedo)
+	if texture != null:
+		# A textured source mesh (a real weapon model, not a flat-coloured
+		# enemy/pickup/world surface) -- carry its skin through, same as the
+		# rigged character's own skin texture.
+		mat.set_shader_parameter("albedo_texture", texture)
 	mat.set_shader_parameter("bands", BANDS)
 	mat.set_shader_parameter("rim_strength", rim)
 	mat.set_shader_parameter("rim_width", RIM_WIDTH)
 	mat.set_shader_parameter("emission_color", emission)
 	mat.set_shader_parameter("emission_energy", emission_energy)
-	mat.next_pass = outline
+	# The inverted-hull outline assumes a flat, manifold PRIMITIVE (the capsule
+	# enemies, box pickups, the old box weapons). On a detailed, thin-walled ripped
+	# GLB mesh (the real weapon models) its expanded back-face hull ends up drawing
+	# OVER the model instead of just at the silhouette, flooding the whole gun with
+	# ink. Textured meshes are exactly those detailed models, so skip the outline
+	# for them -- the cel banding alone reads well on a textured surface. (The rigged
+	# character, also textured, uses its own scale-compensated outline via
+	# make_character_material, a separate path.)
+	mat.next_pass = null if texture != null else outline
 	return mat
 
 

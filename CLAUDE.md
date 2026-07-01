@@ -40,6 +40,20 @@ Headings in `context_systems.md`:
 - **Audio** — AudioManager registry, signal-driven SFX (silent until assets land).
 - **Cel-shading** — ToonApplicator + toon shaders.
 - **Weapon wall-clip fix** — WeaponClip render-on-top.
+- **Real weapon meshes (GLB)** — the 3 guns use textured Sketchfab GLBs (ice_gun=Pistol,
+  SPAS=Shotgun, sci-fi rifle=Rifle) via a `model_scene` on WeaponData; `_build_weapon_model`
+  auto-fits them at runtime (cancels the import chain's rotation+scale relative to the model
+  node, applies a small authored fix to point the muzzle −Z, auto-scales + recentres).
+  Cel-shaded, with texture-guarded fixes in `_make_toon_material` (carry the albedo texture
+  through; SKIP the Sketchfab-fullbright emission + the flat-primitive outline for textured
+  meshes — both flooded the gun solid white/ink). Two follow-up fixes: the ripped GLB materials
+  are all authored double-sided, so `toon_viewmodel.gdshader` renders `cull_disabled` (+ a
+  `FRONT_FACING` normal flip) — `cull_back` was culling their thin shells so you saw *through*
+  the gun ("transparent materials"); and the SPAS needed `model_roll_deg = -90` (it imported
+  rolled about its barrel — grip sideways; the sign matters, +90 lands it upside-down, so read
+  the grip-down direction off the side view, not first-person). `WEAPON_CLIP_SMOKE_OK`; look via
+  `tools/weapon_preview.tscn` (saves a first-person AND an orientation-revealing side view per
+  gun). See **Real weapon meshes (GLB)** in `context_systems.md`.
 - **Bullet FX: decals + tracers** — BulletFX autoload.
 - **Advanced movement** — wall-run / dash / vault / momentum / double jump (inside player.gd).
 - **Speed-line / wind overlay** — `SpeedLines` (child of Player, sibling of HackManager): a

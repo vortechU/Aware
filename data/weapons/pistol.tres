@@ -1,6 +1,7 @@
-[gd_resource type="Resource" script_class="WeaponData" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="WeaponData" format=3 uid="uid://d0vawbjpx57u8"]
 
-[ext_resource type="Script" path="res://scripts/weapons/weapon_data.gd" id="1"]
+[ext_resource type="Script" uid="uid://bkyupbqka4ci1" path="res://scripts/weapons/weapon_data.gd" id="1"]
+[ext_resource type="PackedScene" uid="uid://h550atbbng4o" path="res://Assets/ice_gun.glb" id="2"]
 
 [resource]
 script = ExtResource("1")
@@ -8,7 +9,6 @@ weapon_name = "Pistol"
 damage = 25.0
 fire_rate = 5.0
 auto = false
-pellets = 1
 max_range = 120.0
 mag_size = 12
 start_reserve = 48
@@ -25,3 +25,8 @@ ads_time = 0.12
 model_color = Color(0.22, 0.22, 0.26, 1)
 model_length = 0.26
 sound_radius = 25.0
+model_scene = ExtResource("2")
+model_fix_rotation_deg = Vector3(90, 0, 0)
+model_roll_deg = 180.0
+model_target_length = 0.28
+muzzle_offset = Vector3(0, 0, -0.16)

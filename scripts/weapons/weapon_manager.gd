@@ -22,7 +22,6 @@ var _mag: Array[int] = []
 var _reserve: Array[int] = []
 var _models: Array[Node3D] = []
 var _flashes: Array[Node3D] = []
-var _muzzle_z: Array[float] = []
 
 var _cooldown := 0.0
 var _reloading := false
@@ -47,8 +46,13 @@ func _ready() -> void:
 	for data in weapon_datas:
 		_mag.append(data.mag_size)
 		_reserve.append(data.start_reserve)
-		var model := _build_weapon_model(data)
+		var model := Node3D.new()
+		model.name = data.weapon_name
+		# Added to the (already in-tree) manager BEFORE building: the model-fit
+		# below reads global_transform on freshly-instanced children, which only
+		# resolves correctly once the whole parent chain is live in the tree.
 		add_child(model)
+		_build_weapon_model(model, data)
 		_models.append(model)
 
 	_impact_material = StandardMaterial3D.new()
@@ -336,37 +340,107 @@ func get_reload_progress() -> float:
 
 # ---------------------------------------------------------------- cosmetics
 
-func _build_weapon_model(data: WeaponData) -> Node3D:
-	var root := Node3D.new()
-	root.name = data.weapon_name
+## Biggest mesh by AABB volume (ignores small decorative sub-meshes like glass/
+## light bits some Sketchfab exports carry), used as the reference for cancelling
+## the import chain's rotation+scale.
+func _biggest_mesh(node: Node) -> MeshInstance3D:
+	var best: MeshInstance3D = null
+	var best_vol := -1.0
+	for mi in _all_mesh_instances(node):
+		var s: Vector3 = (mi as MeshInstance3D).get_aabb().size
+		var vol: float = s.x * s.y * s.z
+		if vol > best_vol:
+			best_vol = vol
+			best = mi as MeshInstance3D
+	return best
 
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = data.model_color
-	mat.metallic = 0.4
-	mat.roughness = 0.55
 
-	var body := MeshInstance3D.new()
-	var body_mesh := BoxMesh.new()
-	body_mesh.size = Vector3(0.07, 0.12, data.model_length)
-	body.mesh = body_mesh
-	body.material_override = mat
-	body.position = Vector3(0.0, -0.02, -data.model_length * 0.5)
-	root.add_child(body)
+func _all_mesh_instances(node: Node) -> Array:
+	var out: Array = []
+	if node is MeshInstance3D:
+		out.append(node)
+	for c in node.get_children():
+		out.append_array(_all_mesh_instances(c))
+	return out
 
-	var barrel := MeshInstance3D.new()
-	var barrel_mesh := BoxMesh.new()
-	barrel_mesh.size = Vector3(0.035, 0.035, data.model_length * 0.45)
-	barrel.mesh = barrel_mesh
-	barrel.material_override = mat
-	barrel.position = Vector3(0.0, 0.045, -data.model_length * 0.85)
-	root.add_child(barrel)
+
+## AABB of every mesh under `node`, expressed in `ref`'s LOCAL frame (not world) --
+## so the fit below is independent of where the camera / weapon manager happens to
+## be aimed when the weapon is built.
+func _mesh_tree_aabb_in(node: Node, ref: Node3D) -> AABB:
+	var ref_inv := ref.global_transform.affine_inverse()
+	var acc := AABB()
+	var first := true
+	for mi in _all_mesh_instances(node):
+		var m := mi as MeshInstance3D
+		var box: AABB = (ref_inv * m.global_transform) * (m.get_aabb())
+		if first:
+			acc = box
+			first = false
+		else:
+			acc = acc.merge(box)
+	return acc
+
+
+## Populates `root` (already inside the tree -- see _ready) with either the real
+## weapon mesh, auto-fit to a sane first-person size/orientation, or a procedural
+## placeholder box+barrel if no mesh is authored yet.
+func _build_weapon_model(root: Node3D, data: WeaponData) -> void:
+	if data.model_scene != null:
+		var model := data.model_scene.instantiate() as Node3D
+		model.name = "Model"
+		root.add_child(model)  # must be in-tree before global_transform below resolves
+
+		var main_mesh := _biggest_mesh(model)
+		if main_mesh != null:
+			# Cancel the WHOLE import chain's rotation+scale (Sketchfab/fbx2gltf
+			# fixups stack arbitrarily), then rotate by the small hand-derived fix
+			# that points THIS asset's muzzle at -Z. Kept as a raw Basis multiply,
+			# never round-tripped through Euler -- see the WeaponData comment for why.
+			# Measured RELATIVE to `model` (not from the mesh's global basis), so the
+			# camera's orientation when this runs at spawn can't bake a tilt into it.
+			var rel := model.global_transform.affine_inverse() * main_mesh.global_transform
+			var derot: Basis = rel.basis.inverse()
+			var fix := Basis.from_euler(data.model_fix_rotation_deg * PI / 180.0)
+			var roll := Basis(Vector3(0.0, 0.0, 1.0), deg_to_rad(data.model_roll_deg))
+			var corrected := roll * fix * derot
+			model.transform.basis = corrected
+
+			# Auto-scale to the target length, then auto-recentre on the bbox
+			# centroid (measured in root's local frame at this unscaled-but-rotated
+			# pose, then scaled).
+			var aabb := _mesh_tree_aabb_in(model, root)
+			var longest := maxf(aabb.size.x, maxf(aabb.size.y, aabb.size.z))
+			var scale_factor := data.model_target_length / maxf(longest, 0.0001)
+			model.transform.basis = corrected * scale_factor
+			model.position = -aabb.get_center() * scale_factor + data.model_offset
+	else:
+		# Placeholder for a weapon with no authored mesh yet: procedural box+barrel.
+		var mat := StandardMaterial3D.new()
+		mat.albedo_color = data.model_color
+		mat.metallic = 0.4
+		mat.roughness = 0.55
+
+		var body := MeshInstance3D.new()
+		var body_mesh := BoxMesh.new()
+		body_mesh.size = Vector3(0.07, 0.12, data.model_length)
+		body.mesh = body_mesh
+		body.material_override = mat
+		body.position = Vector3(0.0, -0.02, -data.model_length * 0.5)
+		root.add_child(body)
+
+		var barrel := MeshInstance3D.new()
+		var barrel_mesh := BoxMesh.new()
+		barrel_mesh.size = Vector3(0.035, 0.035, data.model_length * 0.45)
+		barrel.mesh = barrel_mesh
+		barrel.material_override = mat
+		barrel.position = Vector3(0.0, 0.045, -data.model_length * 0.85)
+		root.add_child(barrel)
 
 	# Muzzle flash: emissive billboard quad + light, hidden until a shot.
-	var muzzle_z := -data.model_length - 0.08
-	_muzzle_z.append(muzzle_z)
 	var flash := Node3D.new()
 	flash.name = "MuzzleFlash"
-	flash.position = Vector3(0.0, 0.045, muzzle_z)
+	flash.position = data.muzzle_offset
 
 	var flash_mat := StandardMaterial3D.new()
 	flash_mat.albedo_color = Color(1.0, 0.75, 0.25, 0.9)
@@ -392,7 +466,6 @@ func _build_weapon_model(data: WeaponData) -> Node3D:
 	flash.visible = false
 	root.add_child(flash)
 	_flashes.append(flash)
-	return root
 
 
 func _spawn_impact(point: Vector3, normal: Vector3) -> void:
