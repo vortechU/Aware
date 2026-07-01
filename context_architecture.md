@@ -618,6 +618,34 @@ scripts. On Windows the Godot exe detaches from the console, so use
     out, and `is_dead` forces it off even at speed. Shaders don't compile headless, so the LOOK is
     eyeballed via `tools/speed_lines_preview.tscn` (NON-headless: low/mid/full PNGs). Tunables =
     node `@export`s + shader uniforms (tint/`line_count`/`line_sharpness`/`edge_start`/`edge_end`).
+45. `res://tools/shop_test.tscn` — cosmetic shop Pass 1 (the standalone holographic terminal) →
+    `SHOP_OK`. A `ShopTerminal` (`scripts/ui/shop_terminal.gd`, code-built Control on the
+    `shaders/hologram_panel.gdshader` glass panel — title / category tabs / scroll grid of
+    `ShopItemCard`s / `CORES OWNED` footer / CLOSE) + a `ShopTurntable`
+    (`scripts/world/shop_turntable.gd`, a lit spinning pedestal that swaps its display model per
+    item). Self-contained + asset-free + decoupled (catalog = plain `Array[Dictionary]` from
+    `ShopCatalog`, currency a local `cores` mirror — no autoload dependency, so it runs in a
+    preview/sandbox). Asserts the catalog/economy/wiring the shader can't show headless: ALL shows
+    one card per item + a category filter narrows it; hovering a card emits `item_focused`; an
+    affordable buy spends + marks owned + emits `item_purchased` once, while re-buy / unaffordable
+    are denied with Cores unchanged; the turntable mounts exactly one model per `show_item`. Look
+    eyeballed via `tools/shop_preview.tscn` (NON-headless, interactive; `-- --shot` saves a PNG).
+    GOTCHA: `set_anchors_preset(FULL_RECT)` keeps offsets (`keep_offsets=true`) → root Control stays
+    0x0 and every container collapses to content-min size; use `set_anchors_and_offsets_preset`.
+46. `res://tools/shop_lobby_test.tscn` — cosmetic shop Pass 2 (wired into the lobby + Cores) →
+    `SHOP_LOBBY_OK`. `MetaProgression` gains a cosmetic economy alongside the upgrade one:
+    `owned_cosmetics` (persisted in a `[cosmetics]` cfg section), `buy_cosmetic(id, cost)` +
+    `owns_cosmetic(id)`. A `ShopController` (`scripts/ui/shop_controller.gd`) bridges the decoupled
+    terminal to the save — on `open()` it syncs the terminal FROM the save (real Cores + owned
+    marks), and `item_purchased` commits the spend back via `buy_cosmetic` then reconciles the
+    display; it owns the CanvasLayer overlay + mouse + ESC-to-close. The lobby builds a
+    `ShopTerminal` Area3D station in code (the mode/hack-station convention, no .tscn edit) that
+    `_interact` opens, freezing the player externally (`_set_player_frozen`, the RunDirector way, no
+    player.gd edit). Asserts: the economy spends/denies/persists; the controller syncs + commits +
+    reconciles; the lobby station exists, registers the player by proximity, opens on interact,
+    freezes the player + shows the live Cores total, and unfreezes on close. Snapshots + restores
+    the real `meta_progress.cfg` cores/cosmetics (the `lobby_smoke` convention). In-lobby look
+    eyeballed via `tools/shop_lobby_preview.tscn` (NON-headless).
 
 `--check-only --script` does NOT register autoloads, so scripts referencing
 `GameEvents`/`RunManager` must be checked via the in-engine .tscn harnesses.

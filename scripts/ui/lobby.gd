@@ -23,6 +23,9 @@ var _labels := {}                # Area3D -> its Label3D
 ## (so an untouched lobby still launches CAMPAIGN). Never set in _ready, so tests
 ## that drive RunManager directly keep its ENDLESS default.
 var _selected_mode := RunManager.RunMode.CAMPAIGN
+## The cosmetic shop, opened from the ShopTerminal station. Built in code (like
+## the mode/hack stations) so the scene file needs no edit; owns its own overlay.
+var _shop: ShopController
 
 @onready var player: Player = $Player
 @onready var stations_root: Node3D = $Stations
@@ -39,6 +42,7 @@ func _ready() -> void:
 	_silence_weapon()
 	_build_mode_station()  # added before the wiring loop so it gets wired like the rest
 	_build_hack_stations()  # adjective-unlock pedestals, same code-built convention
+	_build_shop_station()  # cosmetic shop terminal, same code-built convention
 	for child in stations_root.get_children():
 		var area := child as Area3D
 		if area == null:
@@ -148,6 +152,67 @@ func _build_buy_pedestal(id: String, pos: Vector3, color: Color) -> void:
 	area.add_child(label)
 
 
+## Build the cosmetic-shop station (an Area3D pedestal + a holo-green terminal
+## post) in code, before the _ready wiring loop, so it gets body_entered/exited +
+## its label hooked like the authored stations. Also spins up the ShopController
+## that owns the panel overlay + the MetaProgression economy bridge.
+func _build_shop_station() -> void:
+	var area := Area3D.new()
+	area.name = "ShopTerminal"
+	area.collision_layer = 0
+	area.collision_mask = 2  # detect the player (layer 2), like the other stations
+	stations_root.add_child(area)
+	area.position = Vector3(7.0, 0.0, 5.0)  # right side, clear of the hack pedestals + spawn
+
+	var zone := CollisionShape3D.new()
+	zone.name = "Zone"
+	var box := BoxShape3D.new()
+	box.size = Vector3(3.5, 3.0, 3.5)
+	zone.shape = box
+	zone.position = Vector3(0.0, 1.2, 0.0)
+	area.add_child(zone)
+
+	var base := MeshInstance3D.new()
+	var base_mesh := BoxMesh.new()
+	base_mesh.size = Vector3(1.4, 0.6, 1.0)
+	base.mesh = base_mesh
+	base.position = Vector3(0.0, 0.3, 0.0)
+	base.material_override = _shop_mat(0.6)
+	area.add_child(base)
+
+	var panel := MeshInstance3D.new()
+	var panel_mesh := BoxMesh.new()
+	panel_mesh.size = Vector3(1.5, 1.1, 0.12)
+	panel.mesh = panel_mesh
+	panel.position = Vector3(0.0, 1.35, 0.0)
+	panel.material_override = _shop_mat(2.4)
+	area.add_child(panel)
+
+	var label := Label3D.new()
+	label.name = "Label3D"
+	label.pixel_size = 0.004
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	label.font_size = 38
+	label.outline_size = 8
+	label.modulate = Color(0.6, 1.0, 0.8)
+	label.text = "CORE EXCHANGE"
+	label.position = Vector3(0.0, 2.4, 0.0)
+	area.add_child(label)
+
+	_shop = ShopController.new()
+	add_child(_shop)
+	_shop.closed.connect(_on_shop_closed)
+
+
+func _shop_mat(energy: float) -> StandardMaterial3D:
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.12, 0.45, 0.35)
+	mat.emission_enabled = true
+	mat.emission = Color(0.2, 1.0, 0.6)
+	mat.emission_energy_multiplier = energy
+	return mat
+
+
 func _mode_name() -> String:
 	return "ESCAPE" if _selected_mode == RunManager.RunMode.CAMPAIGN else "ENDLESS"
 
@@ -164,6 +229,8 @@ func _toggle_mode() -> void:
 
 
 func _process(_delta: float) -> void:
+	if _shop != null and _shop.is_open:
+		return  # the open shop owns input (clicks + ESC); ignore worldspace interact
 	if Input.is_action_just_pressed("interact"):
 		_interact()
 
@@ -211,9 +278,35 @@ func _interact() -> void:
 		_toggle_mode()
 	elif id == "MenuDoor":
 		get_tree().change_scene_to_file(MENU_SCENE)
+	elif id == "ShopTerminal":
+		_open_shop()
 	elif _is_upgrade(id):
 		MetaProgression.buy(id)  # emits cores_changed -> _refresh_all on success
 		_refresh_all()           # also re-sync after a failed (too-poor) buy
+
+
+## Open the cosmetic shop overlay and freeze the player while it's up; the
+## ShopController.closed signal unfreezes on dismiss (CLOSE button / ESC).
+func _open_shop() -> void:
+	if _shop == null:
+		return
+	_set_player_frozen(true)
+	prompt_label.visible = false  # the overlay replaces the worldspace prompt
+	_shop.open()
+
+
+func _on_shop_closed() -> void:
+	_set_player_frozen(false)
+	_update_prompt()  # player is still on the station -> restore its prompt
+
+
+## Externally freeze the lobby player (no player.gd edit), the RunDirector way:
+## movement, camera look and per-frame logic stop while the shop is open. The
+## weapon is already silenced for the whole hub by _silence_weapon.
+func _set_player_frozen(frozen: bool) -> void:
+	player.set_physics_process(not frozen)
+	player.set_process(not frozen)
+	player.set_process_unhandled_input(not frozen)
 
 
 ## Commit to a run: lock in the chosen mode (so an untouched lobby still launches
@@ -243,8 +336,8 @@ func _refresh_station(station: Area3D) -> void:
 	if label == null:
 		return
 	var id := String(station.name)
-	if id == "StartPortal" or id == "MenuDoor":
-		return  # static labels authored in the scene
+	if id == "StartPortal" or id == "MenuDoor" or id == "ShopTerminal":
+		return  # static labels (authored in the scene, or set at build time)
 	if id == "ModeToggle":
 		label.text = "RUN MODE\n%s" % _mode_name()
 		return
@@ -270,6 +363,8 @@ func _update_prompt() -> void:
 		prompt_label.text = "[E]  Run mode: %s  -  switch" % _mode_name()
 	elif id == "MenuDoor":
 		prompt_label.text = "[E]  Back to main menu"
+	elif id == "ShopTerminal":
+		prompt_label.text = "[E]  Open the Core Exchange"
 	elif _is_upgrade(id):
 		var def := MetaProgression.upgrade_def(id)
 		var cost: int = MetaProgression.next_cost(id)

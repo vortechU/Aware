@@ -112,6 +112,61 @@ Headings in `context_systems.md`:
   harnesses toggle it OFF to keep testing the launch/gun-drop. The EnemyRig crumple still runs
   (orthogonal). `DELETION_VFX_OK` (#43), all 43 harnesses green; look eyeballed via
   `tools/deletion_preview.tscn`. See **Enemy death: deletion VFX** in `context_systems.md`.
+- **Cosmetic shop ("Core Exchange")** — a holographic in-world shop (Roblox "Tuck Shop"-style):
+  `ShopTerminal` (code-built Control on `shaders/hologram_panel.gdshader` — title / category tabs /
+  scroll grid of `ShopItemCard`s / `CORES OWNED` footer / CLOSE) + `ShopTurntable` (lit spinning
+  pedestal that swaps its display model per hovered item). Build-alongside + decoupled: the terminal
+  is self-contained + asset-free (catalog = plain `Array[Dictionary]` from `ShopCatalog`, currency a
+  local `cores` mirror, no autoload dep). `ShopController` bridges it to the persistent economy —
+  `MetaProgression` gained a cosmetic track (`owned_cosmetics` + `buy_cosmetic`/`owns_cosmetic`,
+  persisted in a `[cosmetics]` cfg section) alongside the upgrade track. Wired into the lobby as a
+  code-built `ShopTerminal` Area3D station (mode/hack-station convention) that opens the overlay +
+  freezes the player (RunDirector-style external freeze, no player.gd edit). Pass 1 (standalone
+  terminal+turntable, `SHOP_OK` #45) + Pass 2 (lobby + Cores + persistence, `SHOP_LOBBY_OK` #46) +
+  Pass 3 (theme polish) + Pass 4 (equip plumbing) + Pass 5 (juice/motion) + Pass 6 (3D tilt) done.
+  **3D tilt (Pass 6):** the whole panel now reacts like a tilted glass slab as the cursor moves over
+  it — `ShopTerminal` renders its entire content (holo backing + edge frame + every control) into a
+  `SubViewport`, shown through a `SubViewportContainer` ("TiltView") wearing `shaders/panel_tilt.gdshader`;
+  a `_process` loop eases a `tilt` uniform toward the cursor's offset from the panel's centre (zero when
+  the mouse isn't over the panel) via `lerp`, the SpeedLines/glitch-overlay smoothing pattern. **The shear
+  is a VERTEX shader displacement, not a fragment/UV warp**: the first cut warped UV inside a frozen
+  rect, so the border/glow stayed axis-aligned and just clipped the warped content underneath (looked
+  like the border was "excluded" from the tilt) — the fix moves the quad's actual corners in `vertex()`
+  (scaled by a `panel_size` uniform the script keeps in sync, since `VERTEX` is pixels but `UV` is 0..1),
+  so the whole silhouette shears as one rigid card; `fragment()` only adds the specular glare band sliding
+  opposite the lean. Purely visual — `SubViewportContainer`'s normal input forwarding keeps buttons
+  clickable underneath.
+  GOTCHA avoided: don't chase visual artifacts in the LOBBY preview harness without isolating first — an
+  early render showed a "duplicate title" ghost, traced (by nulling the shader, then by fully bypassing
+  the SubViewport) to a PRE-EXISTING characteristic unrelated to this pass: the lobby preview's very
+  close camera (1.5 units from the station) lets the station's own glowing 3D prop + floating world
+  label bleed through the translucent glass panel, identical with or without the tilt code. **Juice (Pass 5):**
+  every state change now eases instead of snapping — `ShopItemCard` keeps one persistent `StyleBoxFlat`
+  and TWEENS its bg/border/border-width toward the target state (idle/hover/selected/equipped) instead
+  of swapping stylebox instances, plus a hover scale bump (~1.035x), a purchase `pulse()` (scale+color
+  punch) and a denied-purchase `shake()`; `ShopTerminal` eases the Cores number via a `tween_method`-
+  driven `_cores_display` float (`set_cores(amount, animate)` — `animate=false` for the open-time
+  resync-to-truth, `true` for an actual spend/reward so the number visibly counts); the panel itself
+  now fades+scales in/out (`ShopTerminal.animate_open`/`animate_close`, tweening the `Frame` node) —
+  `ShopController.open`/`close` call these instead of snapping `.visible`. All still code-only tweens,
+  no new assets. **Equip (Pass 4):** a bought cosmetic can be
+  equipped into its category slot (one per category, swaps on re-equip) — `MetaProgression`
+  `equipped_cosmetics` + `equip_cosmetic`/`is_equipped`/`equipped_in`, persisted in an `[equipped]`
+  cfg section; the card's primary button cycles PURCHASE → EQUIP → EQUIPPED with an accent border on
+  the equipped card (`ShopTerminal.attempt_equip`/`item_equipped` → `ShopController._on_equipped`
+  commits). DELIBERATELY plumbing-only: an equipped cosmetic has NO in-game effect yet (items
+  unplanned) — it's just the owned→equipped bookkeeping + save hook for when items are designed.
+  **Theme polish (Pass 3):** a code-built holo `Theme` (`scripts/ui/shop_theme.gd`,
+  `class_name ShopTheme`, set on the terminal root so it styles only that subtree) gives the buttons
+  state styleboxes, the category tabs a selected-fill (toggle buttons in a ButtonGroup), a thin holo
+  scrollbar, a glowing panel-edge frame, a title+subtitle+underline header, and a two-tone currency
+  footer; each card shows a custom-drawn vector glyph (`scripts/ui/shop_item_icon.gd`, `ShopItemIcon`
+  — chair/sphere/helmet/torus/capsule/prism/box) instead of a flat swatch, plus hover + selected
+  (turntable item) highlight. Still asset-free (no fonts shipped). Look eyeballed via
+  `tools/shop_preview.tscn` (standalone, interactive) + `tools/shop_lobby_preview.tscn` (in-lobby).
+  GOTCHA: `set_anchors_AND_OFFSETS_preset` (anchors-only keeps offsets → 0×0 collapse). Next: design
+  the actual cosmetic items + what equipping each DOES (apply to player), real meshes/icons, lobby
+  turntable beside the station, SFX.
 - **Developer tools** — DevTools autoload, debug-build cheats (F1 god / F2 kill all / F3 refill / F5-F6 room jump / F7 layer jump). Plus a **Sandbox** test map (main-menu **TEST MAP** → `scenes/ui/sandbox.tscn`): a kitted free-play arena (every hack adjective unlocked + both abilities granted, hackable cubes over dummies) for trying new mechanics outside the run flow.
 - **Current state** — running changelog of everything shipped so far.
 

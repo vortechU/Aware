@@ -52,7 +52,9 @@ const META_UPGRADES: Array[Dictionary] = [
 ]
 
 var cores := 0
-var upgrade_levels := {}  # id -> level owned (0 = not bought)
+var upgrade_levels := {}      # id -> level owned (0 = not bought)
+var owned_cosmetics := {}     # cosmetic id -> true (shop purchases; see ShopCatalog)
+var equipped_cosmetics := {}  # category -> the equipped cosmetic id in that slot
 ## Set by the Lobby's START RUN and never cleared, so Try Again reloads of
 ## main.tscn keep their bonuses. Direct main.tscn launches stay unarmed.
 var run_bonuses_armed := false
@@ -103,6 +105,49 @@ func buy(id: String) -> bool:
 ## The Lobby's START RUN arms the meta layer for the upcoming run(s).
 func arm_run_bonuses() -> void:
 	run_bonuses_armed = true
+
+
+# ---------------------------------------------------------------- cosmetics (shop)
+
+## Cosmetic purchases sit alongside the upgrade economy: a one-time unlock keyed
+## by id, priced in Cores by the caller (ShopCatalog). Spends + persists + emits
+## like buy(), but has no per-level curve and no gameplay effect (yet) -- purely
+## owned/not-owned, so the shop can mark items SOLD and (later) equip them.
+func owns_cosmetic(id: String) -> bool:
+	return bool(owned_cosmetics.get(id, false))
+
+
+func buy_cosmetic(id: String, cost: int) -> bool:
+	if id.is_empty() or cost < 0 or owns_cosmetic(id) or cores < cost:
+		return false
+	cores -= cost
+	owned_cosmetics[id] = true
+	_save()
+	cores_changed.emit(cores)
+	return true
+
+
+## Equip an owned cosmetic into its category slot (one equipped item per
+## category, like most cosmetic systems). Free + persisted; what an equipped
+## cosmetic actually DOES in-game is intentionally not wired yet (items unplanned)
+## -- this is just the owned->equipped bookkeeping + save hook.
+func is_equipped(id: String) -> bool:
+	for cat in equipped_cosmetics:
+		if String(equipped_cosmetics[cat]) == id:
+			return true
+	return false
+
+
+func equipped_in(category: String) -> String:
+	return String(equipped_cosmetics.get(category, ""))
+
+
+func equip_cosmetic(id: String, category: String) -> bool:
+	if not owns_cosmetic(id) or category.is_empty():
+		return false
+	equipped_cosmetics[category] = id  # overwrites the slot -> swaps within a category
+	_save()
+	return true
 
 
 # ---------------------------------------------------------------- cores payout
@@ -202,6 +247,10 @@ func _save() -> void:
 	config.set_value("meta", "cores", cores)
 	for id in upgrade_levels:
 		config.set_value("upgrades", id, upgrade_levels[id])
+	for id in owned_cosmetics:
+		config.set_value("cosmetics", id, true)
+	for cat in equipped_cosmetics:
+		config.set_value("equipped", cat, equipped_cosmetics[cat])
 	config.save(SAVE_PATH)
 
 
@@ -214,3 +263,9 @@ func _load() -> void:
 		var id: String = def.id
 		var level := int(config.get_value("upgrades", id, upgrade_levels[id]))
 		upgrade_levels[id] = clampi(level, 0, int(def.max_level))
+	if config.has_section("cosmetics"):
+		for id in config.get_section_keys("cosmetics"):
+			owned_cosmetics[id] = bool(config.get_value("cosmetics", id, false))
+	if config.has_section("equipped"):
+		for cat in config.get_section_keys("equipped"):
+			equipped_cosmetics[cat] = String(config.get_value("equipped", cat, ""))
